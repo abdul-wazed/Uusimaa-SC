@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SportClub Manager</title>
+
+<!-- ════════════════════════════════════════════
+  ⚙️  FIREBASE CONFIGURATION
+  Replace the values below with your own Firebase project config.
+  Get them from: Firebase Console → Project Settings → Your apps → Web app
+════════════════════════════════════════════ -->
+<script>
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyCpHPvOvmCf9AvvxpLq2UyjMvZ5tKFcOmg",
+  authDomain:        "Yuusimasportingclub.firebaseapp.com",
+  projectId:         "uusimasportingclub",
+  storageBucket:     "uusimasportingclub.firebasestorage.app",
+  messagingSenderId: "945448470461",
+  appId:             "1:945448470461:web:2ccbc93f6a6302b71ab4d4"
+};
+// Admin email — this account will have admin privileges
+const ADMIN_EMAIL = "wadud.23@gmail.com";
+</script>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:       #07090f;
+  --s1:       #0e1118;
+  --s2:       #161b27;
+  --s3:       #1e2535;
+  --border:   #252d3f;
+  --gold:     #e8b04b;
+  --gold2:    #f5d08a;
+  --teal:     #2dd4bf;
+  --red:      #f87171;
+  --green:    #4ade80;
+  --blue:     #60a5fa;
+  --purple:   #a78bfa;
+  --text:     #eef0f6;
+  --muted:    #5a6480;
+  --muted2:   #8892aa;
+  --ff-h:     'Syne', sans-serif;
+  --ff-b:     'Outfit', sans-serif;
+  --ff-m:     'JetBrains Mono', monospace;
+  --r:        10px;
+  --shadow:   0 4px 24px rgba(0,0,0,.4);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: var(--ff-b); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; overflow-x: hidden; }
+
+/* ── LOADING ── */
+#loading-screen {
+  position: fixed; inset: 0; z-index: 9999;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+}
+.loader-logo { font-family: var(--ff-h); font-size: 42px; font-weight: 800; color: var(--gold); letter-spacing: 3px; }
+.loader-ring {
+  width: 40px; height: 40px; border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--gold);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── AUTH ── */
+#auth-screen {
+  display: none; position: fixed; inset: 0;
+  background: radial-gradient(ellipse at 20% 10%, #111827 0%, var(--bg) 70%);
+  align-items: center; justify-content: center;
+}
+.auth-card {
+  width: 420px; max-width: 95vw;
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: 20px; padding: 40px 36px;
+  position: relative; overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.auth-card::after {
+  content: '';
+  position: absolute; inset: 0; border-radius: 20px;
+  background: linear-gradient(135deg, rgba(232,176,75,.06) 0%, transparent 60%);
+  pointer-events: none;
+}
+.auth-brand { font-family: var(--ff-h); font-size: 32px; font-weight: 800; color: var(--gold); letter-spacing: 2px; }
+.auth-tagline { color: var(--muted2); font-size: 13px; margin-bottom: 28px; }
+.auth-switcher { display: flex; background: var(--s2); border-radius: 10px; padding: 3px; margin-bottom: 24px; }
+.auth-sw-btn {
+  flex: 1; padding: 8px; border: none; background: none;
+  color: var(--muted2); font-family: var(--ff-b); font-size: 13px; font-weight: 500;
+  border-radius: 8px; cursor: pointer; transition: all .2s;
+}
+.auth-sw-btn.on { background: var(--s3); color: var(--text); box-shadow: 0 1px 6px rgba(0,0,0,.4); }
+
+/* ── FORM ── */
+.fg { margin-bottom: 14px; }
+.fg label { display: block; font-size: 11px; color: var(--muted2); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 5px; }
+.fg input, .fg select, .fg textarea {
+  width: 100%; padding: 10px 14px;
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: var(--r); color: var(--text);
+  font-family: var(--ff-b); font-size: 14px; outline: none;
+  transition: border-color .2s;
+}
+.fg input:focus, .fg select:focus, .fg textarea:focus { border-color: var(--teal); }
+.fg select option { background: var(--s2); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 20px; border: none; border-radius: var(--r);
+  font-family: var(--ff-b); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all .18s; white-space: nowrap;
+}
+.btn-gold { background: var(--gold); color: #000; }
+.btn-gold:hover { background: var(--gold2); transform: translateY(-1px); }
+.btn-teal { background: rgba(45,212,191,.15); color: var(--teal); border: 1px solid rgba(45,212,191,.3); }
+.btn-teal:hover { background: rgba(45,212,191,.25); }
+.btn-red { background: rgba(248,113,113,.15); color: var(--red); border: 1px solid rgba(248,113,113,.3); }
+.btn-red:hover { background: rgba(248,113,113,.25); }
+.btn-ghost { background: var(--s2); color: var(--muted2); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--text); border-color: var(--gold); }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-xs { padding: 4px 10px; font-size: 11px; }
+.btn-full { width: 100%; }
+.btn:disabled { opacity: .5; cursor: not-allowed; transform: none !important; }
+
+/* ── APP LAYOUT ── */
+#app { display: none; height: 100vh; overflow: hidden; }
+.layout { display: flex; height: 100%; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 230px; flex-shrink: 0; height: 100%;
+  background: var(--s1); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+.sb-brand {
+  padding: 22px 18px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.sb-logo { font-family: var(--ff-h); font-size: 22px; font-weight: 800; color: var(--gold); }
+.sb-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.sb-nav { padding: 10px 8px; flex: 1; }
+.sb-section { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; padding: 10px 10px 4px; }
+.ni {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px; cursor: pointer;
+  color: var(--muted2); font-size: 13px; font-weight: 500;
+  transition: all .15s; margin-bottom: 1px; user-select: none;
+}
+.ni:hover { background: var(--s2); color: var(--text); }
+.ni.on { background: rgba(232,176,75,.1); color: var(--gold); }
+.ni .ico { flex-shrink: 0; width: 16px; height: 16px; }
+.sb-foot {
+  padding: 14px 18px; border-top: 1px solid var(--border);
+}
+.sb-user-name { font-weight: 600; font-size: 13px; }
+.sb-user-role {
+  display: inline-block; margin: 4px 0 10px;
+  font-size: 10px; padding: 2px 10px; border-radius: 99px; font-weight: 600;
+}
+.role-admin { background: rgba(232,176,75,.15); color: var(--gold); }
+.role-member { background: rgba(96,165,250,.12); color: var(--blue); }
+
+/* ── MAIN ── */
+.main { flex: 1; height: 100%; overflow-y: auto; }
+.page { display: none; padding: 30px 36px; animation: fadeUp .25s ease; }
+.page.on { display: block; }
+@keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+.ph { margin-bottom: 26px; }
+.ph-row { display: flex; justify-content: space-between; align-items: flex-start; }
+.pt { font-family: var(--ff-h); font-size: 30px; font-weight: 800; letter-spacing: .5px; }
+.ps { color: var(--muted2); font-size: 13px; margin-top: 3px; }
+
+/* ── CARDS ── */
+.card { background: var(--s1); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+.card-t { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; margin-bottom: 14px; }
+
+/* ── STAT GRID ── */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px,1fr)); gap: 14px; margin-bottom: 24px; }
+.sc { background: var(--s1); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
+.sc-l { font-size: 11px; color: var(--muted2); text-transform: uppercase; letter-spacing: .5px; }
+.sc-v { font-family: var(--ff-h); font-size: 38px; font-weight: 800; line-height: 1; margin: 6px 0 2px; color: var(--gold); }
+.sc-s { font-size: 11px; color: var(--muted); }
+
+/* ── GRID ── */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.g3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; }
+
+/* ── TABLE ── */
+.tw { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  background: var(--s2); padding: 11px 16px;
+  text-align: left; font-size: 11px; color: var(--muted2);
+  text-transform: uppercase; letter-spacing: .5px;
+  border-bottom: 1px solid var(--border); font-weight: 600;
+}
+tbody tr { border-bottom: 1px solid var(--border); transition: background .12s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: rgba(255,255,255,.02); }
+tbody td { padding: 12px 16px; font-size: 13px; vertical-align: middle; }
+
+/* ── BADGES ── */
+.b { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 600; }
+.b-green  { background: rgba(74,222,128,.12); color: var(--green); }
+.b-red    { background: rgba(248,113,113,.12); color: var(--red); }
+.b-gold   { background: rgba(232,176,75,.12);  color: var(--gold); }
+.b-blue   { background: rgba(96,165,250,.12);  color: var(--blue); }
+.b-teal   { background: rgba(45,212,191,.12);  color: var(--teal); }
+.b-purple { background: rgba(167,139,250,.12); color: var(--purple); }
+.b-gray   { background: rgba(90,100,128,.15);  color: var(--muted2); }
+
+/* ── MODAL ── */
+.ov {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.75); backdrop-filter: blur(6px);
+  z-index: 1000; align-items: center; justify-content: center;
+}
+.ov.on { display: flex; }
+.modal {
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: 18px; padding: 30px; width: 500px; max-width: 96vw;
+  max-height: 88vh; overflow-y: auto; position: relative;
+  box-shadow: var(--shadow);
+}
+.modal-t { font-family: var(--ff-h); font-size: 22px; font-weight: 700; margin-bottom: 20px; }
+.mc {
+  position: absolute; top: 14px; right: 14px;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--s2); border: none; color: var(--muted2);
+  font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.mc:hover { color: var(--text); }
+
+/* ── ANNOUNCEMENT ── */
+.ann {
+  background: var(--s1); border: 1px solid var(--border);
+  border-left: 3px solid var(--gold);
+  border-radius: 12px; padding: 16px 18px; margin-bottom: 10px;
+}
+.ann-t { font-weight: 600; font-size: 14px; }
+.ann-b { color: var(--muted2); font-size: 13px; margin-top: 4px; line-height: 1.65; }
+.ann-d { font-size: 11px; color: var(--muted); margin-top: 8px; font-family: var(--ff-m); }
+
+/* ── TOURNAMENT CARD ── */
+.tc {
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: 14px; overflow: hidden; cursor: pointer;
+  transition: border-color .2s, transform .2s, box-shadow .2s;
+}
+.tc:hover { border-color: var(--gold); transform: translateY(-3px); box-shadow: 0 8px 32px rgba(232,176,75,.12); }
+.tc-h { background: var(--s2); padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.tc-name { font-family: var(--ff-h); font-size: 18px; font-weight: 700; margin-top: 6px; }
+.tc-b { padding: 14px 18px; }
+.tc-meta { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; }
+.tc-mi { font-size: 11px; color: var(--muted2); }
+
+/* ── FIXTURE ── */
+.fx {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 16px; margin-bottom: 8px;
+}
+.fx-team { flex: 1; font-weight: 600; font-size: 13px; }
+.fx-team.r { text-align: right; }
+.fx-score { font-family: var(--ff-h); font-size: 22px; font-weight: 700; min-width: 70px; text-align: center; color: var(--gold); }
+.fx-vs { color: var(--muted); font-size: 11px; min-width: 30px; text-align: center; }
+
+/* ── TABS ── */
+.tabs { display: flex; gap: 3px; margin-bottom: 20px; background: var(--s2); padding: 3px; border-radius: 11px; width: fit-content; }
+.tab { padding: 7px 16px; border-radius: 9px; cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted2); transition: all .15s; }
+.tab.on { background: var(--s1); color: var(--text); box-shadow: 0 1px 6px rgba(0,0,0,.35); }
+
+/* ── ATTENDANCE ── */
+.att-present { background: rgba(74,222,128,.07); border-color: rgba(74,222,128,.25); }
+.att-absent { background: rgba(248,113,113,.04); border-color: rgba(248,113,113,.15); }
+
+/* ── PAYMENT DUE ── */
+.due-banner {
+  background: rgba(248,113,113,.07); border: 1px solid rgba(248,113,113,.25);
+  border-radius: 10px; padding: 12px 16px; font-size: 13px; color: #fca5a5;
+  margin-bottom: 16px;
+}
+
+/* ── TOAST ── */
+#toast {
+  position: fixed; bottom: 22px; right: 22px;
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 11px 18px; font-size: 13px;
+  z-index: 9999; pointer-events: none;
+  transform: translateY(20px); opacity: 0;
+  transition: all .25s;
+}
+#toast.show { transform: none; opacity: 1; }
+#toast.ok  { border-color: var(--green); color: var(--green); }
+#toast.err { border-color: var(--red);   color: var(--red); }
+
+/* ── MISC ── */
+.mb16 { margin-bottom: 16px; }
+.mb20 { margin-bottom: 20px; }
+.mb24 { margin-bottom: 24px; }
+.row { display: flex; gap: 10px; align-items: center; }
+.row-sb { display: flex; justify-content: space-between; align-items: center; }
+.empty { text-align: center; padding: 48px; color: var(--muted); font-size: 13px; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+.text-muted { color: var(--muted2); }
+.text-sm { font-size: 12px; }
+.receipt-img { max-width: 100%; max-height: 240px; border-radius: 10px; border: 1px solid var(--border); margin-top: 10px; display: block; }
+input[type="file"] { font-size: 13px; }
+.spin { animation: spin .8s linear infinite; }
+
+/* ── FIREBASE NOT CONFIGURED BANNER ── */
+#config-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+  background: rgba(248,113,113,.12); border-bottom: 1px solid rgba(248,113,113,.3);
+  color: #fca5a5; font-size: 13px; padding: 10px 20px; text-align: center;
+  display: none;
+}
+</style>
+</head>
+<body>
+
+<!-- CONFIG WARNING BANNER -->
+<div id="config-banner">
+  ⚠️ Firebase is not configured yet. Open this file and replace the <code>FIREBASE_CONFIG</code> values at the top with your own credentials.
+  <a href="https://console.firebase.google.com" target="_blank" style="color:var(--gold);margin-left:8px">Open Firebase Console →</a>
+</div>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="loader-logo">⚡ SPORT<span style="color:#fff">CLUB</span></div>
+  <div class="loader-ring"></div>
+  <div style="color:var(--muted2);font-size:12px">Connecting...</div>
+</div>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="auth-card">
+    <div class="auth-brand">⚡ SPORTCLUB</div>
+    <div class="auth-tagline">Club Management · Powered by Firebase</div>
+    <div class="auth-switcher">
+      <button class="auth-sw-btn on" id="sw-login" onclick="swAuth('login')">Sign In</button>
+      <button class="auth-sw-btn"    id="sw-reg"   onclick="swAuth('reg')">Register</button>
+    </div>
+
+    <!-- LOGIN -->
+    <div id="f-login">
+      <div class="fg"><label>Email</label><input type="email" id="l-email" placeholder="you@email.com"></div>
+      <div class="fg"><label>4-Digit PIN</label><input type="password" id="l-pin" maxlength="4" placeholder="••••" inputmode="numeric"></div>
+      <div id="l-err" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none"></div>
+      <button class="btn btn-gold btn-full" id="l-btn" onclick="doLogin()">Sign In</button>
+    </div>
+
+    <!-- REGISTER -->
+    <div id="f-reg" style="display:none">
+      <div class="fg"><label>Full Name</label><input type="text" id="r-name" placeholder="Your name"></div>
+      <div class="fg"><label>Email</label><input type="email" id="r-email" placeholder="you@email.com"></div>
+      <div class="fg"><label>4-Digit PIN</label><input type="password" id="r-pin" maxlength="4" placeholder="Choose a PIN" inputmode="numeric"></div>
+      <div class="fg"><label>Sport</label>
+        <select id="r-sport">
+          <option>Football</option><option>Badminton</option>
+          <option>Cricket</option><option>Volleyball</option>
+        </select>
+      </div>
+      <div id="r-err" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none"></div>
+      <button class="btn btn-gold btn-full" id="r-btn" onclick="doRegister()">Create Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════ MAIN APP ══════ -->
+<div id="app">
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo">⚡ SPORTCLUB</div>
+      <div class="sb-sub">Management System</div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-section">Main</div>
+      <div class="ni on" onclick="nav('dashboard')">
+        <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </div>
+      <div class="sb-section">Tournaments</div>
+      <div class="ni" onclick="nav('tournaments')">
+        <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>
+        Tournaments
+      </div>
+      <div class="sb-section">Members</div>
+      <div class="ni" onclick="nav('attendance')">
+        <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Attendance
+      </div>
+      <div class="ni" onclick="nav('payments')">
+        <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        Payments
+      </div>
+      <div class="ni adm-only" onclick="nav('members')" style="display:none">
+        <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Members
+      </div>
+      <div class="sb-section">General</div>
+      <div class="ni" onclick="nav('announcements')">
+        <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Announcements
+      </div>
+      <div class="ni" onclick="nav('profile')">
+        <svg class="ico" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M6 20v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+        My Profile
+      </div>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-user-name" id="sb-name">—</div>
+      <div class="sb-user-role" id="sb-role">Member</div><br>
+      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- PAGES -->
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page on" id="pg-dashboard">
+      <div class="ph">
+        <div class="ph-row">
+          <div><div class="pt">Dashboard</div><div class="ps" id="d-greet">—</div></div>
+          <button class="btn btn-gold adm-only" style="display:none" onclick="openM('m-ann')">+ Announcement</button>
+        </div>
+      </div>
+      <div class="stats" id="d-stats"></div>
+      <div class="g2">
+        <div>
+          <div class="card-t">📢 Latest Announcements</div>
+          <div id="d-anns"></div>
+        </div>
+        <div>
+          <div class="card-t">🏆 Active Tournaments</div>
+          <div id="d-tours"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOURNAMENTS LIST -->
+    <div class="page" id="pg-tournaments">
+      <div class="ph">
+        <div class="ph-row">
+          <div><div class="pt">Tournaments</div><div class="ps">All club tournaments</div></div>
+          <button class="btn btn-gold adm-only" style="display:none" onclick="openNewTournament()">+ New Tournament</button>
+        </div>
+      </div>
+      <div id="tour-list" class="g3"></div>
+    </div>
+
+    <!-- TOURNAMENT DETAIL -->
+    <div class="page" id="pg-tour-detail">
+      <div class="ph">
+        <button class="btn btn-ghost btn-sm mb16" onclick="nav('tournaments')">← Back</button>
+        <div class="ph-row">
+          <div><div class="pt" id="td-name">—</div><div class="ps" id="td-meta">—</div></div>
+          <div class="row adm-only" id="td-adm-btns" style="display:none">
+            <button class="btn btn-ghost btn-sm" onclick="openAddTeam()">+ Team</button>
+            <button class="btn btn-ghost btn-sm" onclick="openAddFixture()">+ Fixture</button>
+            <button class="btn btn-gold btn-sm" onclick="openEditTour()">Edit</button>
+          </div>
+        </div>
+      </div>
+      <div class="tabs">
+        <div class="tab on" onclick="tdTab('teams')">Teams & Players</div>
+        <div class="tab" onclick="tdTab('fixtures')">Fixtures</div>
+        <div class="tab" onclick="tdTab('results')">Standings</div>
+      </div>
+      <div id="td-teams"></div>
+      <div id="td-fixtures" style="display:none"></div>
+      <div id="td-results" style="display:none"></div>
+    </div>
+
+    <!-- ATTENDANCE -->
+    <div class="page" id="pg-attendance">
+      <div class="ph">
+        <div class="ph-row">
+          <div><div class="pt">Attendance</div><div class="ps">Session tracking</div></div>
+          <button class="btn btn-gold btn-sm adm-only" style="display:none" onclick="openM('m-session')">+ New Session</button>
+        </div>
+      </div>
+      <div class="tabs" id="att-tabs"></div>
+      <div id="att-content"></div>
+    </div>
+
+    <!-- PAYMENTS -->
+    <div class="page" id="pg-payments">
+      <div class="ph"><div class="pt">Payments</div><div class="ps">Monthly subscription management</div></div>
+      <div id="pay-content"></div>
+    </div>
+
+    <!-- MEMBERS (admin) -->
+    <div class="page" id="pg-members">
+      <div class="ph"><div class="pt">Members</div><div class="ps">All registered members</div></div>
+      <div class="tw">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Sport</th><th>Joined</th><th>This Month</th><th>Actions</th></tr></thead>
+          <tbody id="mem-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ANNOUNCEMENTS -->
+    <div class="page" id="pg-announcements">
+      <div class="ph">
+        <div class="ph-row">
+          <div><div class="pt">Announcements</div><div class="ps">Club news & updates</div></div>
+          <button class="btn btn-gold adm-only" style="display:none" onclick="openM('m-ann')">+ Post</button>
+        </div>
+      </div>
+      <div id="ann-list"></div>
+    </div>
+
+    <!-- PROFILE -->
+    <div class="page" id="pg-profile">
+      <div class="ph"><div class="pt">My Profile</div><div class="ps">Membership & payment details</div></div>
+      <div class="g2 mb20">
+        <div class="card"><div class="card-t">Personal Info</div><div id="prof-info"></div></div>
+        <div class="card"><div class="card-t">Payment History</div><div id="prof-pays"></div></div>
+      </div>
+      <div class="card"><div class="card-t">Submit Payment Receipt</div><div id="prof-upload"></div></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- ══════ MODALS ══════ -->
+
+<!-- Announcement -->
+<div class="ov" id="m-ann">
+  <div class="modal">
+    <button class="mc" onclick="closeM('m-ann')">✕</button>
+    <div class="modal-t">New Announcement</div>
+    <div class="fg"><label>Title</label><input type="text" id="ann-ti" placeholder="Announcement title"></div>
+    <div class="fg"><label>Message</label><textarea id="ann-bo" rows="4" placeholder="Write your message..."></textarea></div>
+    <button class="btn btn-gold btn-full" onclick="saveAnn()">Post Announcement</button>
+  </div>
+</div>
+
+<!-- Tournament -->
+<div class="ov" id="m-tour">
+  <div class="modal">
+    <button class="mc" onclick="closeM('m-tour')">✕</button>
+    <div class="modal-t" id="m-tour-title">New Tournament</div>
+    <div class="fg"><label>Name</label><input type="text" id="t-name" placeholder="e.g. Summer Cup 2025"></div>
+    <div class="fg"><label>Sport</label>
+      <select id="t-sport"><option>Football</option><option>Badminton</option><option>Cricket</option><option>Volleyball</option></select>
+    </div>
+    <div class="fg"><label>Start Date</label><input type="date" id="t-start"></div>
+    <div class="fg"><label>End Date</label><input type="date" id="t-end"></div>
+    <div class="fg"><label>Status</label>
+      <select id="t-status"><option>Upcoming</option><option>Ongoing</option><option>Completed</option></select>
+    </div>
+    <div class="fg"><label>Best Player (optional)</label><input type="text" id="t-best" placeholder="Player name"></div>
+    <div class="fg"><label>Description</label><textarea id="t-desc" rows="3" placeholder="Details..."></textarea></div>
+    <button class="btn btn-gold btn-full" onclick="saveTour()">Save Tournament</button>
+  </div>
+</div>
+
+<!-- Team -->
+<div class="ov" id="m-team">
+  <div class="modal">
+    <button class="mc" onclick="closeM('m-team')">✕</button>
+    <div class="modal-t">Add Team</div>
+    <div class="fg"><label>Team Name</label><input type="text" id="team-n" placeholder="e.g. Red Eagles"></div>
+    <div class="fg"><label>Players (one per line)</label><textarea id="team-p" rows="7" placeholder="Player 1&#10;Player 2&#10;Player 3"></textarea></div>
+    <button class="btn btn-gold btn-full" onclick="saveTeam()">Add Team</button>
+  </div>
+</div>
+
+<!-- Fixture -->
+<div class="ov" id="m-fix">
+  <div class="modal">
+    <button class="mc" onclick="closeM('m-fix')">✕</button>
+    <div class="modal-t">Fixture</div>
+    <div class="fg"><label>Home Team</label><select id="fx-home"></select></div>
+    <div class="fg"><label>Away Team</label><select id="fx-away"></select></div>
+    <div class="fg"><label>Date & Time</label><input type="datetime-local" id="fx-dt"></div>
+    <div class="fg"><label>Venue</label><input type="text" id="fx-venue" placeholder="Venue"></div>
+    <div class="fg"><label>Home Score (blank = not played)</label><input type="number" id="fx-sh" min="0" placeholder="—"></div>
+    <div class="fg"><label>Away Score</label><input type="number" id="fx-sa" min="0" placeholder="—"></div>
+    <button class="btn btn-gold btn-full" onclick="saveFix()">Save Fixture</button>
+  </div>
+</div>
+
+<!-- Session -->
+<div class="ov" id="m-session">
+  <div class="modal">
+    <button class="mc" onclick="closeM('m-session')">✕</button>
+    <div class="modal-t">New Session</div>
+    <div class="fg"><label>Sport</label>
+      <select id="ss-sport"><option>Football</option><option>Badminton</option><option>Cricket</option><option>Volleyball</option></select>
+    </div>
+    <div class="fg"><label>Date</label><input type="date" id="ss-date"></div>
+    <div class="fg"><label>Notes</label><input type="text" id="ss-notes" placeholder="e.g. Practice match"></div>
+    <button class="btn btn-gold btn-full" onclick="saveSession()">Create Session</button>
+  </div>
+</div>
+
+<!-- Payment Review -->
+<div class="ov" id="m-pay-review">
+  <div class="modal">
+    <button class="mc" onclick="closeM('m-pay-review')">✕</button>
+    <div class="modal-t">Payment Review</div>
+    <div id="pay-rev-body"></div>
+    <div class="row mb16" id="pay-rev-btns" style="margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+  FIREBASE SDK + APP LOGIC
+══════════════════════════════════════════ -->
+<script type="module">
+import { initializeApp }                          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
+import { getAuth, createUserWithEmailAndPassword,
+         signInWithEmailAndPassword, signOut,
+         onAuthStateChanged }                     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+import { getFirestore, collection, doc,
+         addDoc, setDoc, getDoc, getDocs,
+         updateDoc, deleteDoc, query,
+         where, orderBy, onSnapshot,
+         serverTimestamp }                        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+
+// ── INIT ──────────────────────────────────
+let app, auth, db;
+try {
+  app  = initializeApp(FIREBASE_CONFIG);
+  auth = getAuth(app);
+  db   = getFirestore(app);
+  if (FIREBASE_CONFIG.apiKey === 'YOUR_API_KEY') {
+    document.getElementById('config-banner').style.display = 'block';
+  }
+} catch(e) {
+  document.getElementById('config-banner').style.display = 'block';
+  document.getElementById('loading-screen').innerHTML = `
+    <div class="loader-logo" style="color:var(--red)">⚠ CONFIG ERROR</div>
+    <div style="color:var(--muted2);font-size:13px;text-align:center;max-width:300px">${e.message}<br><br>Please update FIREBASE_CONFIG at the top of this file.</div>`;
+}
+
+// ── GLOBALS ──────────────────────────────
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+let CU = null; // current user profile
+let activePage = 'dashboard';
+let activeTourId = null;
+let editTourId = null;
+let editFixId = null;
+let attSport = 'Football';
+
+// ── UTILS ────────────────────────────────
+const $ = id => document.getElementById(id);
+const esc = s => s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : '';
+const fmtDate = s => { try { return s?.toDate ? s.toDate().toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : new Date(s).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return s||''; } };
+
+let toastTmr;
+function toast(msg, type='ok') {
+  const el = $('toast');
+  el.textContent = msg; el.className = `show ${type}`;
+  clearTimeout(toastTmr);
+  toastTmr = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+function openM(id) { $(id).classList.add('on'); }
+function closeM(id) { $(id).classList.remove('on'); }
+document.querySelectorAll('.ov').forEach(o => o.addEventListener('click', e => { if (e.target === o) o.classList.remove('on'); }));
+
+// ── AUTH ─────────────────────────────────
+window.swAuth = function(mode) {
+  $('sw-login').classList.toggle('on', mode==='login');
+  $('sw-reg').classList.toggle('on', mode==='reg');
+  $('f-login').style.display = mode==='login' ? '' : 'none';
+  $('f-reg').style.display   = mode==='reg'   ? '' : 'none';
+};
+
+window.doLogin = async function() {
+  const email = $('l-email').value.trim().toLowerCase();
+  const pin   = $('l-pin').value.trim();
+  if (!email || pin.length !== 4) { $('l-err').textContent='Enter email and 4-digit PIN'; $('l-err').style.display=''; return; }
+  const btn = $('l-btn'); btn.disabled = true; btn.textContent = 'Signing in...';
+  try {
+    await signInWithEmailAndPassword(auth, email, pin + '@club.pin');
+  } catch(e) {
+    $('l-err').textContent = 'Invalid email or PIN'; $('l-err').style.display = '';
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+};
+
+window.doRegister = async function() {
+  const name  = $('r-name').value.trim();
+  const email = $('r-email').value.trim().toLowerCase();
+  const pin   = $('r-pin').value.trim();
+  const sport = $('r-sport').value;
+  if (!name || !email || pin.length !== 4) { $('r-err').textContent='Fill all fields. PIN must be 4 digits.'; $('r-err').style.display=''; return; }
+  const btn = $('r-btn'); btn.disabled = true; btn.textContent = 'Creating...';
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pin + '@club.pin');
+    const role = email === ADMIN_EMAIL ? 'admin' : 'member';
+    await setDoc(doc(db, 'users', cred.user.uid), {
+      name, email, sport, role,
+      joined: serverTimestamp()
+    });
+  } catch(e) {
+    $('r-err').textContent = e.code === 'auth/email-already-in-use' ? 'Email already registered' : e.message;
+    $('r-err').style.display = '';
+    btn.disabled = false; btn.textContent = 'Create Account';
+  }
+};
+
+window.doLogout = async function() {
+  await signOut(auth);
+};
+
+// ── AUTH STATE ────────────────────────────
+onAuthStateChanged(auth, async user => {
+  $('loading-screen').style.display = 'none';
+  if (!user) {
+    CU = null;
+    $('auth-screen').style.display = 'flex';
+    $('app').style.display = 'none';
+    return;
+  }
+  // Load user profile
+  const snap = await getDoc(doc(db, 'users', user.uid));
+  if (!snap.exists()) { await signOut(auth); return; }
+  CU = { uid: user.uid, ...snap.data() };
+  $('auth-screen').style.display = 'none';
+  $('app').style.display = 'block';
+  initApp();
+});
+
+// ── INIT APP ─────────────────────────────
+function initApp() {
+  $('sb-name').textContent = CU.name;
+  $('sb-role').innerHTML = `<span class="sb-user-role role-${CU.role}">${CU.role === 'admin' ? 'Admin' : 'Member'}</span>`;
+  document.querySelectorAll('.adm-only').forEach(el => el.style.display = CU.role === 'admin' ? '' : 'none');
+  nav('dashboard');
+}
+
+// ── NAVIGATION ───────────────────────────
+window.nav = function(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('on'));
+  $('pg-' + page).classList.add('on');
+  document.querySelectorAll('.ni').forEach(n => {
+    if (n.getAttribute('onclick')?.includes("'"+page+"'")) n.classList.add('on');
+  });
+  activePage = page;
+  const renders = {
+    dashboard: renderDashboard, tournaments: renderTournaments,
+    attendance: renderAttendance, payments: renderPayments,
+    members: renderMembers, announcements: renderAnnouncements, profile: renderProfile
+  };
+  if (renders[page]) renders[page]();
+};
+
+// ── DASHBOARD ────────────────────────────
+async function renderDashboard() {
+  $('d-greet').textContent = `Welcome back, ${CU.name}!`;
+  const isAdmin = CU.role === 'admin';
+
+  if (isAdmin) {
+    const [usersSnap, toursSnap, sessSnap, paysSnap] = await Promise.all([
+      getDocs(collection(db,'users')),
+      getDocs(collection(db,'tournaments')),
+      getDocs(collection(db,'sessions')),
+      getDocs(query(collection(db,'payments'), where('status','==','pending')))
+    ]);
+    $('d-stats').innerHTML = `
+      <div class="sc"><div class="sc-l">Members</div><div class="sc-v">${usersSnap.size - 1}</div></div>
+      <div class="sc"><div class="sc-l">Tournaments</div><div class="sc-v">${toursSnap.size}</div></div>
+      <div class="sc"><div class="sc-l">Sessions</div><div class="sc-v">${sessSnap.size}</div></div>
+      <div class="sc"><div class="sc-l">Pending Payments</div><div class="sc-v" style="color:var(--red)">${paysSnap.size}</div></div>`;
+  } else {
+    const attSnap = await getDocs(query(collection(db,'attendance'), where('userId','==',CU.uid), where('present','==',true)));
+    $('d-stats').innerHTML = `
+      <div class="sc"><div class="sc-l">Sessions Attended</div><div class="sc-v">${attSnap.size}</div></div>
+      <div class="sc"><div class="sc-l">Sport</div><div class="sc-v" style="font-size:20px;margin-top:10px">${esc(CU.sport)}</div></div>`;
+  }
+
+  // Announcements
+  const annSnap = await getDocs(query(collection(db,'announcements'), orderBy('date','desc')));
+  const anns = annSnap.docs.slice(0,4);
+  $('d-anns').innerHTML = anns.length ? anns.map(a => annCard(a.id, a.data())).join('') : '<div class="empty">No announcements yet.</div>';
+
+  // Active tournaments
+  const tSnap = await getDocs(query(collection(db,'tournaments'), where('status','==','Ongoing')));
+  $('d-tours').innerHTML = tSnap.empty ? '<div class="empty">No ongoing tournaments.</div>' :
+    tSnap.docs.map(d => `<div class="tc mb16" onclick="openTourDetail('${d.id}')"><div class="tc-h"><span class="b b-green">Ongoing</span><div class="tc-name">${esc(d.data().name)}</div></div><div class="tc-b"><span class="b b-gold">${esc(d.data().sport)}</span></div></div>`).join('');
+}
+
+// ── ANNOUNCEMENTS ─────────────────────────
+function annCard(id, a) {
+  return `<div class="ann">
+    <div class="ann-t">${esc(a.title)}</div>
+    <div class="ann-b">${esc(a.body)}</div>
+    <div class="ann-d">${fmtDate(a.date)} · ${esc(a.author||'Admin')}</div>
+    ${CU.role==='admin'?`<button class="btn btn-red btn-xs" style="margin-top:8px" onclick="delAnn('${id}')">Delete</button>`:''}
+  </div>`;
+}
+
+async function renderAnnouncements() {
+  const snap = await getDocs(query(collection(db,'announcements'), orderBy('date','desc')));
+  $('ann-list').innerHTML = snap.empty ? '<div class="empty">No announcements yet.</div>' :
+    snap.docs.map(d => annCard(d.id, d.data())).join('');
+}
+
+window.saveAnn = async function() {
+  const title = $('ann-ti').value.trim(), body = $('ann-bo').value.trim();
+  if (!title || !body) { toast('Fill all fields','err'); return; }
+  await addDoc(collection(db,'announcements'), { title, body, date: serverTimestamp(), author: CU.name });
+  closeM('m-ann'); $('ann-ti').value=''; $('ann-bo').value='';
+  toast('Announcement posted!'); renderAnnouncements();
+};
+
+window.delAnn = async function(id) {
+  if (!confirm('Delete this announcement?')) return;
+  await deleteDoc(doc(db,'announcements',id));
+  toast('Deleted'); renderAnnouncements();
+};
+
+// ── TOURNAMENTS ───────────────────────────
+async function renderTournaments() {
+  const snap = await getDocs(query(collection(db,'tournaments'), orderBy('name')));
+  const el = $('tour-list');
+  if (snap.empty) { el.innerHTML='<div class="empty" style="grid-column:1/-1">No tournaments yet.</div>'; return; }
+  el.innerHTML = snap.docs.map(d => {
+    const t = d.data(), id = d.id;
+    const statusColor = t.status==='Ongoing'?'b-green':t.status==='Upcoming'?'b-blue':'b-gray';
+    return `<div class="tc" onclick="openTourDetail('${id}')">
+      <div class="tc-h">
+        <span class="b ${statusColor}">${esc(t.status)}</span>
+        <div class="tc-name">${esc(t.name)}</div>
+      </div>
+      <div class="tc-b">
+        <span class="b b-gold">${esc(t.sport)}</span>
+        <div class="tc-meta">
+          <div class="tc-mi">📅 ${t.start||'TBD'}</div>
+        </div>
+        ${t.bestPlayer?`<div class="text-sm text-muted" style="margin-top:8px">⭐ <strong style="color:var(--gold)">${esc(t.bestPlayer)}</strong></div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+window.openTourDetail = async function(id) {
+  activeTourId = id;
+  const snap = await getDoc(doc(db,'tournaments',id));
+  const t = snap.data();
+  $('td-name').textContent = t.name;
+  $('td-meta').textContent = `${t.sport} · ${t.status}${t.start?' · '+t.start:''}`;
+  $('td-adm-btns').style.display = CU.role==='admin' ? '' : 'none';
+  nav('tour-detail');
+  tdTab('teams');
+};
+
+window.tdTab = function(tab) {
+  document.querySelectorAll('#pg-tour-detail .tab').forEach((t,i) => t.classList.toggle('on', ['teams','fixtures','results'][i]===tab));
+  $('td-teams').style.display    = tab==='teams'    ? '' : 'none';
+  $('td-fixtures').style.display = tab==='fixtures' ? '' : 'none';
+  $('td-results').style.display  = tab==='results'  ? '' : 'none';
+  if (tab==='teams')    renderTDTeams();
+  if (tab==='fixtures') renderTDFix();
+  if (tab==='results')  renderTDResults();
+};
+
+async function renderTDTeams() {
+  const snap = await getDocs(query(collection(db,'teams'), where('tourId','==',activeTourId)));
+  const el = $('td-teams');
+  if (snap.empty) { el.innerHTML='<div class="empty">No teams added yet.</div>'; return; }
+  el.innerHTML = `<div class="g2">${snap.docs.map(d => {
+    const t = d.data();
+    return `<div class="card">
+      <div class="row-sb mb16">
+        <div style="font-family:var(--ff-h);font-size:18px;font-weight:700">${esc(t.name)}</div>
+        ${CU.role==='admin'?`<button class="btn btn-red btn-xs" onclick="delTeam('${d.id}')">Remove</button>`:''}
+      </div>
+      ${(t.players||[]).map((p,i)=>`<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:13px">${i+1}. ${esc(p)}</div>`).join('')}
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function renderTDFix() {
+  const snap = await getDocs(query(collection(db,'fixtures'), where('tourId','==',activeTourId)));
+  const el = $('td-fixtures');
+  if (snap.empty) { el.innerHTML='<div class="empty">No fixtures yet.</div>'; return; }
+  el.innerHTML = snap.docs.map(d => {
+    const f = d.data();
+    return `<div class="fx">
+      <div class="fx-team">${esc(f.home)}</div>
+      ${f.scoreHome!==undefined&&f.scoreHome!=='' ?
+        `<div class="fx-score">${f.scoreHome} – ${f.scoreAway}</div>` :
+        `<div class="fx-vs">${f.date?fmtDate(f.date):'VS'}</div>`}
+      <div class="fx-team r">${esc(f.away)}</div>
+      <div class="text-sm text-muted" style="min-width:70px;text-align:right">${esc(f.venue||'')}</div>
+      ${CU.role==='admin'?`<button class="btn btn-ghost btn-xs" onclick="openEditFix('${d.id}')">Edit</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+async function renderTDResults() {
+  const snap = await getDocs(query(collection(db,'fixtures'), where('tourId','==',activeTourId)));
+  const fixtures = snap.docs.map(d=>d.data()).filter(f=>f.scoreHome!==undefined&&f.scoreHome!=='');
+  const el = $('td-results');
+  if (!fixtures.length) { el.innerHTML='<div class="empty">No results recorded yet.</div>'; return; }
+  const T = {};
+  fixtures.forEach(f => {
+    [f.home,f.away].forEach(n=>{ if(!T[n]) T[n]={name:n,P:0,W:0,D:0,L:0,GF:0,GA:0}; });
+    const h=+f.scoreHome, a=+f.scoreAway;
+    T[f.home].P++; T[f.away].P++;
+    T[f.home].GF+=h; T[f.home].GA+=a;
+    T[f.away].GF+=a; T[f.away].GA+=h;
+    if(h>a){T[f.home].W++;T[f.away].L++;}
+    else if(h<a){T[f.away].W++;T[f.home].L++;}
+    else{T[f.home].D++;T[f.away].D++;}
+  });
+  const sorted = Object.values(T).sort((a,b)=>(b.W*3+b.D)-(a.W*3+a.D));
+  el.innerHTML = `<div class="tw"><table>
+    <thead><tr><th>#</th><th>Team</th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF</th><th>GA</th><th>Pts</th></tr></thead>
+    <tbody>${sorted.map((t,i)=>`<tr>
+      <td>${i+1}</td><td><strong>${esc(t.name)}</strong></td>
+      <td>${t.P}</td><td>${t.W}</td><td>${t.D}</td><td>${t.L}</td><td>${t.GF}</td><td>${t.GA}</td>
+      <td><strong style="color:var(--gold)">${t.W*3+t.D}</strong></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+window.openAddTeam = function() { $('team-n').value=''; $('team-p').value=''; openM('m-team'); };
+
+window.saveTeam = async function() {
+  const name = $('team-n').value.trim();
+  const players = $('team-p').value.split('\n').map(p=>p.trim()).filter(Boolean);
+  if (!name) { toast('Enter team name','err'); return; }
+  await addDoc(collection(db,'teams'), { tourId: activeTourId, name, players });
+  closeM('m-team'); toast('Team added!'); renderTDTeams();
+};
+
+window.delTeam = async function(id) {
+  if (!confirm('Remove team?')) return;
+  await deleteDoc(doc(db,'teams',id)); toast('Removed'); renderTDTeams();
+};
+
+window.openAddFixture = async function() {
+  const snap = await getDocs(query(collection(db,'teams'), where('tourId','==',activeTourId)));
+  if (snap.size < 2) { toast('Add at least 2 teams first','err'); return; }
+  const opts = snap.docs.map(d=>`<option>${esc(d.data().name)}</option>`).join('');
+  $('fx-home').innerHTML = opts; $('fx-away').innerHTML = opts;
+  $('fx-dt').value=''; $('fx-venue').value=''; $('fx-sh').value=''; $('fx-sa').value='';
+  delete $('fx-home').dataset.eid;
+  openM('m-fix');
+};
+
+window.openEditFix = async function(id) {
+  const snap = await getDoc(doc(db,'fixtures',id)); const f = snap.data();
+  const tsnap = await getDocs(query(collection(db,'teams'), where('tourId','==',activeTourId)));
+  const opts = tsnap.docs.map(d=>`<option>${esc(d.data().name)}</option>`).join('');
+  $('fx-home').innerHTML = opts; $('fx-away').innerHTML = opts;
+  $('fx-home').value=f.home; $('fx-away').value=f.away;
+  $('fx-dt').value=f.date||''; $('fx-venue').value=f.venue||'';
+  $('fx-sh').value=f.scoreHome!==undefined?f.scoreHome:'';
+  $('fx-sa').value=f.scoreAway!==undefined?f.scoreAway:'';
+  $('fx-home').dataset.eid = id;
+  openM('m-fix');
+};
+
+window.saveFix = async function() {
+  const home=$('fx-home').value, away=$('fx-away').value;
+  if (home===away) { toast('Teams must be different','err'); return; }
+  const data = { tourId: activeTourId, home, away, date: $('fx-dt').value, venue: $('fx-venue').value,
+                 scoreHome: $('fx-sh').value, scoreAway: $('fx-sa').value };
+  const eid = $('fx-home').dataset.eid;
+  if (eid) { await updateDoc(doc(db,'fixtures',eid), data); delete $('fx-home').dataset.eid; }
+  else { await addDoc(collection(db,'fixtures'), data); }
+  closeM('m-fix'); toast('Fixture saved!'); renderTDFix();
+};
+
+window.openNewTournament = function() {
+  editTourId = null; $('m-tour-title').textContent='New Tournament';
+  ['t-name','t-start','t-end','t-best','t-desc'].forEach(id => $(id).value='');
+  $('t-status').value='Upcoming';
+  openM('m-tour');
+};
+
+window.openEditTour = async function() {
+  const snap = await getDoc(doc(db,'tournaments',activeTourId)); const t = snap.data();
+  editTourId = activeTourId; $('m-tour-title').textContent='Edit Tournament';
+  $('t-name').value=t.name; $('t-sport').value=t.sport;
+  $('t-start').value=t.start||''; $('t-end').value=t.end||'';
+  $('t-status').value=t.status; $('t-best').value=t.bestPlayer||''; $('t-desc').value=t.desc||'';
+  openM('m-tour');
+};
+
+window.saveTour = async function() {
+  const name = $('t-name').value.trim();
+  if (!name) { toast('Enter tournament name','err'); return; }
+  const data = { name, sport:$('t-sport').value, start:$('t-start').value, end:$('t-end').value,
+                 status:$('t-status').value, bestPlayer:$('t-best').value.trim(), desc:$('t-desc').value.trim() };
+  if (editTourId) { await updateDoc(doc(db,'tournaments',editTourId), data); editTourId=null; }
+  else { await addDoc(collection(db,'tournaments'), data); }
+  closeM('m-tour'); toast('Tournament saved!'); renderTournaments();
+};
+
+// ── ATTENDANCE ───────────────────────────
+async function renderAttendance() {
+  const sports = ['Football','Badminton','Cricket','Volleyball'];
+  $('att-tabs').innerHTML = sports.map(s=>`<div class="tab ${s===attSport?'on':''}" onclick="setAttSport('${s}')">${s}</div>`).join('');
+  await renderAttContent();
+}
+
+window.setAttSport = function(s) { attSport=s; renderAttendance(); };
+
+async function renderAttContent() {
+  const isAdmin = CU.role==='admin';
+  const sessSnap = await getDocs(query(collection(db,'sessions'), where('sport','==',attSport), orderBy('date','desc')));
+  const el = $('att-content');
+  if (sessSnap.empty) { el.innerHTML=`<div class="empty">No sessions for ${attSport} yet.</div>`; return; }
+
+  const attSnap = await getDocs(collection(db,'attendance'));
+  const attAll = attSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+  const members = isAdmin ? (await getDocs(query(collection(db,'users'), where('sport','==',attSport), where('role','==','member')))).docs.map(d=>({uid:d.id,...d.data()})) : [];
+
+  let html = '';
+  for (const sd of sessSnap.docs) {
+    const sess = sd.data();
+    const sessAtts = attAll.filter(a=>a.sessionId===sd.id);
+    const myAtt = sessAtts.find(a=>a.userId===CU.uid);
+    const presentCount = sessAtts.filter(a=>a.present).length;
+
+    html += `<div class="card mb20">
+      <div class="row-sb mb16">
+        <div>
+          <strong>${fmtDate(sess.date)}</strong>
+          <div class="text-sm text-muted">${esc(sess.notes||'')} · ${presentCount} present</div>
+        </div>
+        ${isAdmin?`<button class="btn btn-red btn-xs" onclick="delSession('${sd.id}')">Delete</button>`:''}
+      </div>`;
+
+    if (isAdmin) {
+      html += `<div class="tw"><table><thead><tr><th>Member</th><th>Status</th><th>Action</th></tr></thead><tbody>`;
+      members.forEach(m => {
+        const att = sessAtts.find(a=>a.userId===m.uid);
+        html += `<tr>
+          <td>${esc(m.name)}</td>
+          <td><span class="b b-${att?.present?'green':'gray'}">${att?.present?'Present':'Absent'}</span></td>
+          <td><button class="btn btn-sm ${att?.present?'btn-red':'btn-teal'}" onclick="toggleAtt('${sd.id}','${m.uid}')">
+            ${att?.present?'Mark Absent':'Mark Present'}
+          </button></td>
+        </tr>`;
+      });
+      html += `</tbody></table></div>`;
+    } else {
+      html += `<div>
+        <div class="text-sm text-muted mb16">Your attendance: <span class="b b-${myAtt?.present?'green':'gray'}">${myAtt?.present?'Present':'Not marked'}</span></div>
+        ${!myAtt?.present ? `<button class="btn btn-teal btn-sm" onclick="markSelf('${sd.id}')">✓ Mark Myself Present</button>` : '<span class="b b-green">✓ Marked</span>'}
+      </div>`;
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+window.toggleAtt = async function(sessionId, userId) {
+  const snap = await getDocs(query(collection(db,'attendance'), where('sessionId','==',sessionId), where('userId','==',userId)));
+  if (snap.empty) { await addDoc(collection(db,'attendance'), { sessionId, userId, present: true }); }
+  else { await updateDoc(snap.docs[0].ref, { present: !snap.docs[0].data().present }); }
+  renderAttContent();
+};
+
+window.markSelf = async function(sessionId) {
+  const snap = await getDocs(query(collection(db,'attendance'), where('sessionId','==',sessionId), where('userId','==',CU.uid)));
+  if (snap.empty) { await addDoc(collection(db,'attendance'), { sessionId, userId: CU.uid, present: true }); }
+  else { await updateDoc(snap.docs[0].ref, { present: true }); }
+  toast('Attendance marked!'); renderAttContent();
+};
+
+window.saveSession = async function() {
+  const sport=$('ss-sport').value, date=$('ss-date').value, notes=$('ss-notes').value;
+  if (!date) { toast('Select a date','err'); return; }
+  await addDoc(collection(db,'sessions'), { sport, date, notes, created: serverTimestamp() });
+  closeM('m-session'); attSport=sport; toast('Session created!'); renderAttendance();
+};
+
+window.delSession = async function(id) {
+  if (!confirm('Delete session and attendance data?')) return;
+  // Delete attendance docs
+  const attSnap = await getDocs(query(collection(db,'attendance'), where('sessionId','==',id)));
+  await Promise.all(attSnap.docs.map(d=>deleteDoc(d.ref)));
+  await deleteDoc(doc(db,'sessions',id));
+  toast('Deleted'); renderAttContent();
+};
+
+// ── PAYMENTS ──────────────────────────────
+async function renderPayments() {
+  const el = $('pay-content');
+  if (CU.role==='admin') await renderAdminPays(el);
+  else await renderMemberPays(el);
+}
+
+async function renderAdminPays(el) {
+  const allSnap = await getDocs(query(collection(db,'payments'), orderBy('uploaded','desc')));
+  const all = allSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const pending = all.filter(p=>p.status==='pending');
+  const now = new Date();
+  const approved = all.filter(p=>p.status==='approved'&&p.month===MONTHS[now.getMonth()]);
+
+  el.innerHTML = `
+    <div class="stats mb24">
+      <div class="sc"><div class="sc-l">Pending Approval</div><div class="sc-v" style="color:var(--gold)">${pending.length}</div></div>
+      <div class="sc"><div class="sc-l">Approved This Month</div><div class="sc-v" style="color:var(--green)">${approved.length}</div></div>
+    </div>
+    <div class="card-t">Pending Receipts</div>
+    ${pending.length?`<div class="tw mb20"><table>
+      <thead><tr><th>Member</th><th>Month</th><th>Uploaded</th><th>Action</th></tr></thead>
+      <tbody>${pending.map(p=>`<tr>
+        <td>${esc(p.memberName)}</td>
+        <td>${esc(p.month)} ${p.year}</td>
+        <td>${fmtDate(p.uploaded)}</td>
+        <td><button class="btn btn-teal btn-sm" onclick="reviewPay('${p.id}')">Review</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:`<div class="empty mb20">No pending payments.</div>`}
+    <div class="card-t">All Payment Records</div>
+    <div class="tw"><table>
+      <thead><tr><th>Member</th><th>Month</th><th>Year</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>${all.map(p=>`<tr>
+        <td>${esc(p.memberName)}</td>
+        <td>${esc(p.month)}</td><td>${p.year}</td>
+        <td><span class="b b-${p.status==='approved'?'green':p.status==='rejected'?'red':'gold'}">${p.status}</span></td>
+        <td><button class="btn btn-ghost btn-xs" onclick="reviewPay('${p.id}')">View</button></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+}
+
+async function renderMemberPays(el) {
+  const snap = await getDocs(query(collection(db,'payments'), where('memberId','==',CU.uid), orderBy('uploaded','desc')));
+  const pays = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const now = new Date();
+  const tm = MONTHS[now.getMonth()], ty = now.getFullYear();
+  const thisPay = pays.find(p=>p.month===tm&&p.year===ty);
+
+  let statusHtml = '';
+  if (!thisPay) statusHtml = `<div class="due-banner">⚠️ Monthly Subscription is due for <strong>${tm} ${ty}</strong>. Go to <strong>My Profile</strong> to upload your receipt.</div>`;
+  else if (thisPay.status==='pending') statusHtml = `<span class="b b-gold" style="padding:10px 18px;font-size:13px">⏳ Receipt for ${tm} ${ty} is under review</span>`;
+  else if (thisPay.status==='approved') statusHtml = `<span class="b b-green" style="padding:10px 18px;font-size:13px">✓ Payment for ${tm} ${ty} approved</span>`;
+  else statusHtml = `<div class="due-banner">Payment for ${tm} ${ty} was rejected. Please re-upload.</div>`;
+
+  el.innerHTML = `
+    <div class="mb20">${statusHtml}</div>
+    <div class="card-t">My Payment History</div>
+    ${pays.length?`<div class="tw"><table>
+      <thead><tr><th>Month</th><th>Year</th><th>Status</th></tr></thead>
+      <tbody>${pays.map(p=>`<tr>
+        <td>${esc(p.month)}</td><td>${p.year}</td>
+        <td><span class="b b-${p.status==='approved'?'green':p.status==='rejected'?'red':'gold'}">${p.status}</span></td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:`<div class="empty">No payments yet.</div>`}`;
+}
+
+window.reviewPay = async function(id) {
+  const snap = await getDoc(doc(db,'payments',id)); const p = snap.data();
+  $('pay-rev-body').innerHTML = `
+    <div class="fg"><label>Member</label><strong>${esc(p.memberName)}</strong></div>
+    <div class="fg"><label>Period</label>${esc(p.month)} ${p.year}</div>
+    <div class="fg"><label>Status</label><span class="b b-${p.status==='approved'?'green':p.status==='rejected'?'red':'gold'}">${p.status}</span></div>
+    <div class="fg"><label>Receipt</label>${p.receiptData?`<img src="${p.receiptData}" class="receipt-img">`:'No image attached'}</div>`;
+  $('pay-rev-btns').innerHTML = p.status==='pending' ?
+    `<button class="btn btn-gold" onclick="approvePay('${id}')">✓ Approve</button>
+     <button class="btn btn-red" onclick="rejectPay('${id}')">✗ Reject</button>` :
+    `<span class="b b-${p.status==='approved'?'green':'red'}" style="padding:10px 18px">Payment ${p.status}</span>`;
+  openM('m-pay-review');
+};
+
+window.approvePay = async function(id) {
+  await updateDoc(doc(db,'payments',id),{status:'approved'});
+  closeM('m-pay-review'); toast('Approved!'); renderPayments();
+};
+window.rejectPay = async function(id) {
+  await updateDoc(doc(db,'payments',id),{status:'rejected'});
+  closeM('m-pay-review'); toast('Rejected','err'); renderPayments();
+};
+
+// ── MEMBERS ──────────────────────────────
+async function renderMembers() {
+  const [uSnap, pSnap] = await Promise.all([
+    getDocs(query(collection(db,'users'), where('role','==','member'))),
+    getDocs(collection(db,'payments'))
+  ]);
+  const pays = pSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const now = new Date();
+  const tm = MONTHS[now.getMonth()], ty = now.getFullYear();
+
+  $('mem-tbody').innerHTML = uSnap.docs.map(d => {
+    const u = d.data(), uid = d.id;
+    const pay = pays.find(p=>p.memberId===uid&&p.month===tm&&p.year===ty);
+    const pHtml = pay ? `<span class="b b-${pay.status==='approved'?'green':pay.status==='rejected'?'red':'gold'}">${pay.status}</span>`
+                      : `<span class="b b-red">Due for ${tm}</span>`;
+    return `<tr>
+      <td><strong>${esc(u.name)}</strong></td>
+      <td>${esc(u.email)}</td>
+      <td><span class="b b-blue">${esc(u.sport)}</span></td>
+      <td class="text-sm text-muted">${fmtDate(u.joined)}</td>
+      <td>${pHtml}</td>
+      <td><button class="btn btn-red btn-xs" onclick="removeMember('${d.id}')">Remove</button></td>
+    </tr>`;
+  }).join('');
+}
+
+window.removeMember = async function(uid) {
+  if (!confirm('Remove this member from the club?')) return;
+  await deleteDoc(doc(db,'users',uid)); toast('Member removed'); renderMembers();
+};
+
+// ── PROFILE ───────────────────────────────
+async function renderProfile() {
+  const now = new Date();
+  const tm = MONTHS[now.getMonth()], ty = now.getFullYear();
+  const pSnap = await getDocs(query(collection(db,'payments'), where('memberId','==',CU.uid), orderBy('uploaded','desc')));
+  const pays = pSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const thisPay = pays.find(p=>p.month===tm&&p.year===ty);
+
+  $('prof-info').innerHTML = `
+    <div class="fg"><label>Name</label><strong style="font-size:15px">${esc(CU.name)}</strong></div>
+    <div class="fg"><label>Email</label>${esc(CU.email)}</div>
+    <div class="fg"><label>Sport</label><span class="b b-blue">${esc(CU.sport)}</span></div>
+    <div class="fg"><label>Role</label><span class="b b-${CU.role==='admin'?'gold':'gray'}">${CU.role}</span></div>
+    <div class="fg"><label>Member Since</label><div class="text-sm text-muted">${fmtDate(CU.joined)}</div></div>`;
+
+  $('prof-pays').innerHTML = pays.length ?
+    pays.map(p=>`<div class="row-sb" style="padding:7px 0;border-bottom:1px solid var(--border)">
+      <div class="text-sm">${p.month} ${p.year}</div>
+      <span class="b b-${p.status==='approved'?'green':p.status==='rejected'?'red':'gold'}">${p.status}</span>
+    </div>`).join('') : '<div class="empty">No payment history.</div>';
+
+  const uploadEl = $('prof-upload');
+  if (CU.role==='admin') { uploadEl.innerHTML='<div class="text-muted text-sm">Admin accounts do not require payment.</div>'; return; }
+  if (thisPay?.status==='approved') { uploadEl.innerHTML=`<span class="b b-green" style="padding:12px 20px">✓ ${tm} ${ty} payment approved</span>`; return; }
+  if (thisPay?.status==='pending')  { uploadEl.innerHTML=`<span class="b b-gold" style="padding:12px 20px">⏳ Receipt for ${tm} ${ty} is under review</span>`; return; }
+
+  uploadEl.innerHTML = `
+    ${!thisPay?`<div class="due-banner">Monthly Subscription is due for <strong>${tm} ${ty}</strong></div>`:''}
+    <div class="fg"><label>Month</label>
+      <select id="pm-month">${MONTHS.map(m=>`<option ${m===tm?'selected':''}>${m}</option>`).join('')}</select>
+    </div>
+    <div class="fg"><label>Year</label><input type="number" id="pm-year" value="${ty}" min="2020" max="2035"></div>
+    <div class="fg"><label>Receipt Image (photo of bank transfer)</label><input type="file" id="pm-file" accept="image/*"></div>
+    <button class="btn btn-gold" onclick="uploadReceipt()">Submit for Approval</button>`;
+}
+
+window.uploadReceipt = function() {
+  const month=$('pm-month').value, year=parseInt($('pm-year').value);
+  const file=$('pm-file').files[0];
+  if (!file) { toast('Select a receipt image','err'); return; }
+  if (file.size > 1.5*1024*1024) { toast('Image too large. Use under 1.5MB','err'); return; }
+  const reader = new FileReader();
+  reader.onload = async e => {
+    // Check no duplicate
+    const existing = await getDocs(query(collection(db,'payments'), where('memberId','==',CU.uid), where('month','==',month), where('year','==',year)));
+    if (!existing.empty) { toast('Already submitted for this month','err'); return; }
+    await addDoc(collection(db,'payments'), {
+      memberId: CU.uid, memberName: CU.name, month, year,
+      status: 'pending', receiptData: e.target.result,
+      uploaded: serverTimestamp()
+    });
+    toast('Receipt submitted! Awaiting admin approval.'); renderProfile();
+  };
+  reader.readAsDataURL(file);
+};
+
+// Expose globals needed by onclick
+window.openM = openM; window.closeM = closeM;
+window.openNewTournament = window.openNewTournament;
+window.openEditTour = window.openEditTour;
+
+</script>
+</body>
+</html>
