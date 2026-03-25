@@ -1,4 +1,4 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -714,12 +714,14 @@ input[type="file"] { font-size: 13px; }
 import { initializeApp }                          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword,
          signInWithEmailAndPassword, signOut,
-         onAuthStateChanged }                     from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
+         onAuthStateChanged,
+         browserLocalPersistence,
+         setPersistence }                          from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js';
 import { getFirestore, collection, doc,
          addDoc, setDoc, getDoc, getDocs,
          updateDoc, deleteDoc, query,
-         where, orderBy, onSnapshot,
-         serverTimestamp }                        from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
+         where, orderBy, serverTimestamp,
+         enableIndexedDbPersistence }              from 'https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js';
 
 // ── INIT ──────────────────────────────────
 let app, auth, db;
@@ -727,6 +729,13 @@ try {
   app  = initializeApp(FIREBASE_CONFIG);
   auth = getAuth(app);
   db   = getFirestore(app);
+
+  // Fix #3: enable local persistence so refresh doesn't lose session
+  setPersistence(auth, browserLocalPersistence).catch(()=>{});
+
+  // Fix #1 & #3: enable Firestore offline cache so reads are instant on reload
+  enableIndexedDbPersistence(db).catch(()=>{});
+
   if (FIREBASE_CONFIG.apiKey === 'YOUR_API_KEY') {
     document.getElementById('config-banner').style.display = 'block';
   }
@@ -778,8 +787,11 @@ window.doLogin = async function() {
   const btn = $('l-btn'); btn.disabled = true; btn.textContent = 'Signing in...';
   try {
     await signInWithEmailAndPassword(auth, email, pin + '@club.pin');
+    // onAuthStateChanged will handle the rest
   } catch(e) {
-    $('l-err').textContent = 'Invalid email or PIN'; $('l-err').style.display = '';
+    const msg = e.code === 'auth/invalid-credential' || e.code === 'auth/wrong-password' || e.code === 'auth/user-not-found'
+      ? 'Invalid email or PIN' : 'Login failed: ' + e.message;
+    $('l-err').textContent = msg; $('l-err').style.display = '';
     btn.disabled = false; btn.textContent = 'Sign In';
   }
 };
@@ -790,38 +802,82 @@ window.doRegister = async function() {
   const pin   = $('r-pin').value.trim();
   const sport = $('r-sport').value;
   if (!name || !email || pin.length !== 4) { $('r-err').textContent='Fill all fields. PIN must be 4 digits.'; $('r-err').style.display=''; return; }
+  if (!/^\d{4}$/.test(pin)) { $('r-err').textContent='PIN must be 4 numbers only'; $('r-err').style.display=''; return; }
   const btn = $('r-btn'); btn.disabled = true; btn.textContent = 'Creating...';
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pin + '@club.pin');
-    const role = email === ADMIN_EMAIL ? 'admin' : 'member';
-    await setDoc(doc(db, 'users', cred.user.uid), {
-      name, email, sport, role,
-      joined: serverTimestamp()
-    });
+    const role = email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'member';
+    const profile = { name, email, sport, role, joined: serverTimestamp() };
+    await setDoc(doc(db, 'users', cred.user.uid), profile);
+    // Cache profile immediately so onAuthStateChanged is instant
+    sessionStorage.setItem('sc_user', JSON.stringify({ uid: cred.user.uid, name, email, sport, role }));
   } catch(e) {
-    $('r-err').textContent = e.code === 'auth/email-already-in-use' ? 'Email already registered' : e.message;
-    $('r-err').style.display = '';
+    const msg = e.code === 'auth/email-already-in-use' ? 'Email already registered'
+      : e.code === 'auth/weak-password' ? 'PIN too weak — use 4 digits'
+      : e.code === 'auth/invalid-email' ? 'Invalid email address'
+      : 'Registration failed: ' + e.message;
+    $('r-err').textContent = msg; $('r-err').style.display = '';
     btn.disabled = false; btn.textContent = 'Create Account';
   }
 };
 
 window.doLogout = async function() {
+  sessionStorage.removeItem('sc_user');
   await signOut(auth);
 };
 
 // ── AUTH STATE ────────────────────────────
 onAuthStateChanged(auth, async user => {
-  $('loading-screen').style.display = 'none';
   if (!user) {
     CU = null;
+    sessionStorage.removeItem('sc_user');
+    $('loading-screen').style.display = 'none';
     $('auth-screen').style.display = 'flex';
     $('app').style.display = 'none';
     return;
   }
-  // Load user profile
-  const snap = await getDoc(doc(db, 'users', user.uid));
-  if (!snap.exists()) { await signOut(auth); return; }
-  CU = { uid: user.uid, ...snap.data() };
+
+  // Fix #1 & #3: try cache first — instant load on refresh, no Firestore round-trip
+  const cached = sessionStorage.getItem('sc_user');
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (parsed.uid === user.uid) {
+        CU = parsed;
+        $('loading-screen').style.display = 'none';
+        $('auth-screen').style.display = 'none';
+        $('app').style.display = 'block';
+        initApp();
+        // Refresh cache from Firestore silently in background
+        getDoc(doc(db, 'users', user.uid)).then(snap => {
+          if (snap.exists()) {
+            CU = { uid: user.uid, ...snap.data() };
+            sessionStorage.setItem('sc_user', JSON.stringify(CU));
+          }
+        }).catch(()=>{});
+        return;
+      }
+    } catch(e) { sessionStorage.removeItem('sc_user'); }
+  }
+
+  // No cache — load from Firestore (first login)
+  try {
+    const snap = await getDoc(doc(db, 'users', user.uid));
+    if (!snap.exists()) { await signOut(auth); return; }
+    CU = { uid: user.uid, ...snap.data() };
+    sessionStorage.setItem('sc_user', JSON.stringify(CU));
+  } catch(e) {
+    // Firestore unreachable — show error but don't loop
+    $('loading-screen').innerHTML = `
+      <div class="loader-logo" style="color:var(--red)">⚠ CONNECTION ERROR</div>
+      <div style="color:var(--muted2);font-size:13px;text-align:center;max-width:320px;margin-top:8px">
+        Could not load your profile. Check your internet connection and
+        <button onclick="location.reload()" style="color:var(--gold);background:none;border:none;cursor:pointer;font-size:13px">refresh the page</button>.
+      </div>`;
+    return;
+  }
+
+  $('loading-screen').style.display = 'none';
   $('auth-screen').style.display = 'none';
   $('app').style.display = 'block';
   initApp();
@@ -907,9 +963,13 @@ async function renderAnnouncements() {
 window.saveAnn = async function() {
   const title = $('ann-ti').value.trim(), body = $('ann-bo').value.trim();
   if (!title || !body) { toast('Fill all fields','err'); return; }
-  await addDoc(collection(db,'announcements'), { title, body, date: serverTimestamp(), author: CU.name });
-  closeM('m-ann'); $('ann-ti').value=''; $('ann-bo').value='';
-  toast('Announcement posted!'); renderAnnouncements();
+  try {
+    await addDoc(collection(db,'announcements'), { title, body, date: serverTimestamp(), author: CU.name });
+    closeM('m-ann'); $('ann-ti').value=''; $('ann-bo').value='';
+    toast('Announcement posted!'); renderAnnouncements();
+  } catch(e) {
+    toast(e.code==='permission-denied' ? 'Permission denied — check Firestore rules' : 'Failed: '+e.message, 'err');
+  }
 };
 
 window.delAnn = async function(id) {
@@ -1034,8 +1094,12 @@ window.saveTeam = async function() {
   const name = $('team-n').value.trim();
   const players = $('team-p').value.split('\n').map(p=>p.trim()).filter(Boolean);
   if (!name) { toast('Enter team name','err'); return; }
-  await addDoc(collection(db,'teams'), { tourId: activeTourId, name, players });
-  closeM('m-team'); toast('Team added!'); renderTDTeams();
+  try {
+    await addDoc(collection(db,'teams'), { tourId: activeTourId, name, players, createdAt: serverTimestamp() });
+    closeM('m-team'); toast('Team added!'); renderTDTeams();
+  } catch(e) {
+    toast(e.code==='permission-denied' ? 'Permission denied — check Firestore rules' : 'Save failed: '+e.message, 'err');
+  }
 };
 
 window.delTeam = async function(id) {
@@ -1097,10 +1161,25 @@ window.saveTour = async function() {
   const name = $('t-name').value.trim();
   if (!name) { toast('Enter tournament name','err'); return; }
   const data = { name, sport:$('t-sport').value, start:$('t-start').value, end:$('t-end').value,
-                 status:$('t-status').value, bestPlayer:$('t-best').value.trim(), desc:$('t-desc').value.trim() };
-  if (editTourId) { await updateDoc(doc(db,'tournaments',editTourId), data); editTourId=null; }
-  else { await addDoc(collection(db,'tournaments'), data); }
-  closeM('m-tour'); toast('Tournament saved!'); renderTournaments();
+                 status:$('t-status').value, bestPlayer:$('t-best').value.trim(), desc:$('t-desc').value.trim(),
+                 updatedAt: serverTimestamp() };
+  try {
+    if (editTourId) {
+      await updateDoc(doc(db,'tournaments',editTourId), data);
+      editTourId = null;
+    } else {
+      data.createdAt = serverTimestamp();
+      await addDoc(collection(db,'tournaments'), data);
+    }
+    closeM('m-tour'); toast('Tournament saved!'); renderTournaments();
+  } catch(e) {
+    console.error('saveTour error:', e);
+    if (e.code === 'permission-denied') {
+      toast('Permission denied — check Firestore rules in Firebase Console','err');
+    } else {
+      toast('Save failed: ' + e.message, 'err');
+    }
+  }
 };
 
 // ── ATTENDANCE ───────────────────────────
@@ -1189,8 +1268,12 @@ window.markSelf = async function(sessionId) {
 window.saveSession = async function() {
   const sport=$('ss-sport').value, date=$('ss-date').value, notes=$('ss-notes').value;
   if (!date) { toast('Select a date','err'); return; }
-  await addDoc(collection(db,'sessions'), { sport, date, notes, created: serverTimestamp() });
-  closeM('m-session'); attSport=sport; toast('Session created!'); renderAttendance();
+  try {
+    await addDoc(collection(db,'sessions'), { sport, date, notes, created: serverTimestamp() });
+    closeM('m-session'); attSport=sport; toast('Session created!'); renderAttendance();
+  } catch(e) {
+    toast(e.code==='permission-denied' ? 'Permission denied — check Firestore rules' : 'Failed: '+e.message, 'err');
+  }
 };
 
 window.delSession = async function(id) {
