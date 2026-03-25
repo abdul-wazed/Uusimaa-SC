@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -12,15 +12,15 @@
 ════════════════════════════════════════════ -->
 <script>
 const FIREBASE_CONFIG = {
-  apiKey:            "YOUR_API_KEY",
-  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId:         "YOUR_PROJECT_ID",
-  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId:             "YOUR_APP_ID"
+  apiKey:            "AIzaSyCpHPvOvmCf9AvvxpLq2UyjMvZ5tKFcOmg",
+  authDomain:        "uusimasportingclub.firebaseapp.com",
+  projectId:         "uusimasportingclub",
+  storageBucket:     "uusimasportingclub.firebasestorage.app",
+  messagingSenderId: "945448470461",
+  appId:             "1:945448470461:web:2ccbc93f6a6302b71ab4d4"
 };
 // Admin email — this account will have admin privileges
-const ADMIN_EMAIL = "admin@yourclub.com";
+const ADMIN_EMAIL = "wazed.ab.23@gmail.com";
 </script>
 
 <style>
@@ -546,7 +546,7 @@ input[type="file"] { font-size: 13px; }
       <div class="ph"><div class="pt">Members</div><div class="ps">All registered members</div></div>
       <div class="tw">
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Sport</th><th>Joined</th><th>This Month</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Sport</th><th>Role</th><th>Joined</th><th>This Month</th><th>Actions</th></tr></thead>
           <tbody id="mem-tbody"></tbody>
         </table>
       </div>
@@ -1294,25 +1294,43 @@ window.rejectPay = async function(id) {
 // ── MEMBERS ──────────────────────────────
 async function renderMembers() {
   const [uSnap, pSnap] = await Promise.all([
-    getDocs(query(collection(db,'users'), where('role','==','member'))),
+    getDocs(collection(db,'users')),
     getDocs(collection(db,'payments'))
   ]);
   const pays = pSnap.docs.map(d=>({id:d.id,...d.data()}));
   const now = new Date();
   const tm = MONTHS[now.getMonth()], ty = now.getFullYear();
 
-  $('mem-tbody').innerHTML = uSnap.docs.map(d => {
-    const u = d.data(), uid = d.id;
-    const pay = pays.find(p=>p.memberId===uid&&p.month===tm&&p.year===ty);
-    const pHtml = pay ? `<span class="b b-${pay.status==='approved'?'green':pay.status==='rejected'?'red':'gold'}">${pay.status}</span>`
-                      : `<span class="b b-red">Due for ${tm}</span>`;
+  // Sort: admins first, then members alphabetically
+  const users = uSnap.docs
+    .map(d=>({docId:d.id,...d.data()}))
+    .sort((a,b) => {
+      if (a.role===b.role) return a.name.localeCompare(b.name);
+      return a.role==='admin' ? -1 : 1;
+    });
+
+  $('mem-tbody').innerHTML = users.map(u => {
+    const isSelf = u.docId === CU.uid;
+    const isAdmin = u.role === 'admin';
+    const pay = pays.find(p=>p.memberId===u.docId&&p.month===tm&&p.year===ty);
+    const pHtml = isAdmin
+      ? '<span class="b b-gray">—</span>'
+      : pay
+        ? `<span class="b b-${pay.status==='approved'?'green':pay.status==='rejected'?'red':'gold'}">${pay.status}</span>`
+        : `<span class="b b-red">Due for ${tm}</span>`;
+    const roleHtml = `<span class="b b-${isAdmin?'gold':'gray'}">${isAdmin?'Admin':'Member'}</span>`;
+    const promoteBtn = isSelf ? '' : isAdmin
+      ? `<button class="btn btn-ghost btn-xs" onclick="setRole('${u.docId}','member')" title="Demote to Member">↓ Demote</button>`
+      : `<button class="btn btn-teal btn-xs"  onclick="setRole('${u.docId}','admin')"  title="Promote to Admin">↑ Admin</button>`;
+    const removeBtn = isSelf ? '' : `<button class="btn btn-red btn-xs" onclick="removeMember('${u.docId}')">Remove</button>`;
     return `<tr>
-      <td><strong>${esc(u.name)}</strong></td>
+      <td><strong>${esc(u.name)}</strong>${isSelf?' <span class="b b-gray" style="font-size:10px">you</span>':''}</td>
       <td>${esc(u.email)}</td>
       <td><span class="b b-blue">${esc(u.sport)}</span></td>
+      <td>${roleHtml}</td>
       <td class="text-sm text-muted">${fmtDate(u.joined)}</td>
       <td>${pHtml}</td>
-      <td><button class="btn btn-red btn-xs" onclick="removeMember('${d.id}')">Remove</button></td>
+      <td><div class="row">${promoteBtn}${removeBtn}</div></td>
     </tr>`;
   }).join('');
 }
@@ -1320,6 +1338,14 @@ async function renderMembers() {
 window.removeMember = async function(uid) {
   if (!confirm('Remove this member from the club?')) return;
   await deleteDoc(doc(db,'users',uid)); toast('Member removed'); renderMembers();
+};
+
+window.setRole = async function(uid, newRole) {
+  const action = newRole === 'admin' ? 'promote this member to Admin' : 'demote this admin to Member';
+  if (!confirm(`Are you sure you want to ${action}?`)) return;
+  await updateDoc(doc(db,'users',uid), { role: newRole });
+  toast(newRole === 'admin' ? '✓ Promoted to Admin' : 'Demoted to Member');
+  renderMembers();
 };
 
 // ── PROFILE ───────────────────────────────
