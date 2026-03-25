@@ -7,8 +7,6 @@
 
 <!-- ════════════════════════════════════════════
   ⚙️  FIREBASE CONFIGURATION
-  Replace the values below with your own Firebase project config.
-  Get them from: Firebase Console → Project Settings → Your apps → Web app
 ════════════════════════════════════════════ -->
 <script>
 const FIREBASE_CONFIG = {
@@ -20,7 +18,7 @@ const FIREBASE_CONFIG = {
   appId:             "1:945448470461:web:2ccbc93f6a6302b71ab4d4"
 };
 // Admin email — this account will have admin privileges
-const ADMIN_EMAIL = "wazed.ab.23@gmail.com";
+const ADMIN_EMAIL = "admin@usc.com";
 </script>
 
 <style>
@@ -396,12 +394,6 @@ input[type="file"] { font-size: 13px; }
       <div class="fg"><label>Full Name</label><input type="text" id="r-name" placeholder="Your name"></div>
       <div class="fg"><label>Email</label><input type="email" id="r-email" placeholder="you@email.com"></div>
       <div class="fg"><label>4-Digit PIN</label><input type="password" id="r-pin" maxlength="4" placeholder="Choose a PIN" inputmode="numeric"></div>
-      <div class="fg"><label>Sport</label>
-        <select id="r-sport">
-          <option>Football</option><option>Badminton</option>
-          <option>Cricket</option><option>Volleyball</option>
-        </select>
-      </div>
       <div id="r-err" style="color:var(--red);font-size:12px;margin-bottom:10px;display:none"></div>
       <button class="btn btn-gold btn-full" id="r-btn" onclick="doRegister()">Create Account</button>
     </div>
@@ -503,24 +495,17 @@ input[type="file"] { font-size: 13px; }
       <div class="ph">
         <button class="btn btn-ghost btn-sm mb16" onclick="nav('tournaments')">← Back</button>
         <div class="ph-row">
-          <div><div class="pt" id="td-name">—</div><div class="ps" id="td-meta">—</div></div>
-          <div class="row adm-only" id="td-adm-btns" style="display:none">
-            <button class="btn btn-ghost btn-sm" onclick="openAddTeam()">+ Team</button>
-            <button class="btn btn-ghost btn-sm" onclick="openAddFixture()">+ Fixture</button>
-            <button class="btn btn-gold btn-sm" onclick="openEditTour()">Edit</button>
+          <div>
+            <div class="pt" id="td-name">—</div>
+            <div class="ps" id="td-meta">—</div>
+          </div>
+          <div class="row" id="td-action-btns">
+            <!-- dynamically filled based on type + role -->
           </div>
         </div>
       </div>
-      <div class="tabs">
-        <div class="tab on" onclick="tdTab('teams')">Teams & Players</div>
-        <div class="tab" onclick="tdTab('fixtures')">Fixtures</div>
-        <div class="tab" onclick="tdTab('results')">Standings</div>
-        <div class="tab adm-only" onclick="tdTab('accounting')" style="display:none">Accounting</div>
-      </div>
-      <div id="td-teams"></div>
-      <div id="td-fixtures" style="display:none"></div>
-      <div id="td-results" style="display:none"></div>
-      <div id="td-accounting" style="display:none"></div>
+      <div class="tabs" id="td-tabs"></div>
+      <div id="td-tab-content"></div>
     </div>
 
     <!-- ATTENDANCE -->
@@ -546,7 +531,7 @@ input[type="file"] { font-size: 13px; }
       <div class="ph"><div class="pt">Members</div><div class="ps">All registered members</div></div>
       <div class="tw">
         <table>
-          <thead><tr><th>Name</th><th>Email</th><th>Sport</th><th>Role</th><th>Joined</th><th>This Month</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th>This Month</th><th>Actions</th></tr></thead>
           <tbody id="mem-tbody"></tbody>
         </table>
       </div>
@@ -575,11 +560,12 @@ input[type="file"] { font-size: 13px; }
 
     <!-- PROFILE -->
     <div class="page" id="pg-profile">
-      <div class="ph"><div class="pt">My Profile</div><div class="ps">Membership & payment details</div></div>
+      <div class="ph"><div class="pt">My Profile</div><div class="ps">Membership & tournament details</div></div>
       <div class="g2 mb20">
         <div class="card"><div class="card-t">Personal Info</div><div id="prof-info"></div></div>
         <div class="card"><div class="card-t">Payment History</div><div id="prof-pays"></div></div>
       </div>
+      <div class="card mb20"><div class="card-t">My Tournaments</div><div id="prof-tours"></div></div>
       <div class="card"><div class="card-t">Submit Payment Receipt</div><div id="prof-upload"></div></div>
     </div>
 
@@ -599,6 +585,8 @@ input[type="file"] { font-size: 13px; }
     <div class="modal-t">New Announcement</div>
     <div class="fg"><label>Title</label><input type="text" id="ann-ti" placeholder="Announcement title"></div>
     <div class="fg"><label>Message</label><textarea id="ann-bo" rows="4" placeholder="Write your message..."></textarea></div>
+    <div class="fg"><label>Image (optional)</label><input type="file" id="ann-img" accept="image/*"></div>
+    <div id="ann-img-preview" style="margin-bottom:12px"></div>
     <button class="btn btn-gold btn-full" onclick="saveAnn()">Post Announcement</button>
   </div>
 </div>
@@ -609,11 +597,21 @@ input[type="file"] { font-size: 13px; }
     <button class="mc" onclick="closeM('m-tour')">✕</button>
     <div class="modal-t" id="m-tour-title">New Tournament</div>
     <div class="fg"><label>Name</label><input type="text" id="t-name" placeholder="e.g. Summer Cup 2025"></div>
+    <div class="fg"><label>Tournament Type</label>
+      <select id="t-type" onchange="onTourTypeChange()">
+        <option value="Ongoing">Ongoing (year-round, individual join)</option>
+        <option value="Seasonal">Seasonal (fixed period, team-based)</option>
+      </select>
+    </div>
     <div class="fg"><label>Sport</label>
       <select id="t-sport"><option>Football</option><option>Badminton</option><option>Cricket</option><option>Volleyball</option></select>
     </div>
-    <div class="fg"><label>Start Date</label><input type="date" id="t-start"></div>
-    <div class="fg"><label>End Date</label><input type="date" id="t-end"></div>
+    <div class="fg" id="t-dates-wrap">
+      <label>Start Date</label><input type="date" id="t-start">
+    </div>
+    <div class="fg" id="t-end-wrap">
+      <label>End Date</label><input type="date" id="t-end">
+    </div>
     <div class="fg"><label>Status</label>
       <select id="t-status"><option>Upcoming</option><option>Ongoing</option><option>Completed</option></select>
     </div>
@@ -623,14 +621,33 @@ input[type="file"] { font-size: 13px; }
   </div>
 </div>
 
-<!-- Team -->
+<!-- Team (Seasonal) -->
 <div class="ov" id="m-team">
   <div class="modal">
     <button class="mc" onclick="closeM('m-team')">✕</button>
     <div class="modal-t">Add Team</div>
     <div class="fg"><label>Team Name</label><input type="text" id="team-n" placeholder="e.g. Red Eagles"></div>
-    <div class="fg"><label>Players (one per line)</label><textarea id="team-p" rows="7" placeholder="Player 1&#10;Player 2&#10;Player 3"></textarea></div>
+    <div class="fg"><label>Players (one per line)</label><textarea id="team-p" rows="6" placeholder="Player 1&#10;Player 2&#10;Player 3"></textarea></div>
     <button class="btn btn-gold btn-full" onclick="saveTeam()">Add Team</button>
+  </div>
+</div>
+
+<!-- Join Seasonal Tournament Modal -->
+<div class="ov" id="m-join-seasonal">
+  <div class="modal">
+    <button class="mc" onclick="closeM('m-join-seasonal')">✕</button>
+    <div class="modal-t">Join Tournament</div>
+    <div style="color:var(--muted2);font-size:13px;margin-bottom:16px">Select your role in this tournament</div>
+    <div class="fg"><label>Your Role</label>
+      <select id="join-role">
+        <option value="Player">⚽ Player</option>
+        <option value="Coach">🎯 Coach</option>
+        <option value="Team Manager">📋 Team Manager</option>
+        <option value="Referee">🟨 Referee</option>
+        <option value="Volunteer">🙋 Volunteer</option>
+      </select>
+    </div>
+    <button class="btn btn-gold btn-full" onclick="confirmJoinSeasonal()">Join Tournament</button>
   </div>
 </div>
 
@@ -659,6 +676,7 @@ input[type="file"] { font-size: 13px; }
     </div>
     <div class="fg"><label>Date</label><input type="date" id="ss-date"></div>
     <div class="fg"><label>Notes</label><input type="text" id="ss-notes" placeholder="e.g. Practice match"></div>
+    <input type="hidden" id="ss-tour-id">
     <button class="btn btn-gold btn-full" onclick="saveSession()">Create Session</button>
   </div>
 </div>
@@ -800,17 +818,15 @@ window.doRegister = async function() {
   const name  = $('r-name').value.trim();
   const email = $('r-email').value.trim().toLowerCase();
   const pin   = $('r-pin').value.trim();
-  const sport = $('r-sport').value;
   if (!name || !email || pin.length !== 4) { $('r-err').textContent='Fill all fields. PIN must be 4 digits.'; $('r-err').style.display=''; return; }
   if (!/^\d{4}$/.test(pin)) { $('r-err').textContent='PIN must be 4 numbers only'; $('r-err').style.display=''; return; }
   const btn = $('r-btn'); btn.disabled = true; btn.textContent = 'Creating...';
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pin + '@club.pin');
     const role = email.toLowerCase() === ADMIN_EMAIL.toLowerCase() ? 'admin' : 'member';
-    const profile = { name, email, sport, role, joined: serverTimestamp() };
+    const profile = { name, email, role, joined: serverTimestamp() };
     await setDoc(doc(db, 'users', cred.user.uid), profile);
-    // Cache profile immediately so onAuthStateChanged is instant
-    sessionStorage.setItem('sc_user', JSON.stringify({ uid: cred.user.uid, name, email, sport, role }));
+    sessionStorage.setItem('sc_user', JSON.stringify({ uid: cred.user.uid, name, email, role }));
   } catch(e) {
     const msg = e.code === 'auth/email-already-in-use' ? 'Email already registered'
       : e.code === 'auth/weak-password' ? 'PIN too weak — use 4 digits'
@@ -922,15 +938,18 @@ async function renderDashboard() {
       getDocs(query(collection(db,'payments'), where('status','==','pending')))
     ]);
     $('d-stats').innerHTML = `
-      <div class="sc"><div class="sc-l">Members</div><div class="sc-v">${usersSnap.size - 1}</div></div>
+      <div class="sc"><div class="sc-l">Members</div><div class="sc-v">${usersSnap.docs.filter(d=>d.data().role==='member').length}</div></div>
       <div class="sc"><div class="sc-l">Tournaments</div><div class="sc-v">${toursSnap.size}</div></div>
       <div class="sc"><div class="sc-l">Sessions</div><div class="sc-v">${sessSnap.size}</div></div>
       <div class="sc"><div class="sc-l">Pending Payments</div><div class="sc-v" style="color:var(--red)">${paysSnap.size}</div></div>`;
   } else {
-    const attSnap = await getDocs(query(collection(db,'attendance'), where('userId','==',CU.uid), where('present','==',true)));
+    const [attSnap, tourMembSnap] = await Promise.all([
+      getDocs(query(collection(db,'attendance'), where('userId','==',CU.uid), where('present','==',true))),
+      getDocs(query(collection(db,'tourMembers'), where('userId','==',CU.uid)))
+    ]);
     $('d-stats').innerHTML = `
       <div class="sc"><div class="sc-l">Sessions Attended</div><div class="sc-v">${attSnap.size}</div></div>
-      <div class="sc"><div class="sc-l">Sport</div><div class="sc-v" style="font-size:20px;margin-top:10px">${esc(CU.sport)}</div></div>`;
+      <div class="sc"><div class="sc-l">Tournaments Joined</div><div class="sc-v">${tourMembSnap.size}</div></div>`;
   }
 
   // Announcements
@@ -949,6 +968,7 @@ function annCard(id, a) {
   return `<div class="ann">
     <div class="ann-t">${esc(a.title)}</div>
     <div class="ann-b">${esc(a.body)}</div>
+    ${a.imgData ? `<img src="${a.imgData}" style="max-width:100%;max-height:280px;border-radius:10px;margin-top:10px;border:1px solid var(--border);display:block">` : ''}
     <div class="ann-d">${fmtDate(a.date)} · ${esc(a.author||'Admin')}</div>
     ${CU.role==='admin'?`<button class="btn btn-red btn-xs" style="margin-top:8px" onclick="delAnn('${id}')">Delete</button>`:''}
   </div>`;
@@ -960,13 +980,32 @@ async function renderAnnouncements() {
     snap.docs.map(d => annCard(d.id, d.data())).join('');
 }
 
+// image preview on select
+document.getElementById('ann-img').addEventListener('change', function() {
+  const f = this.files[0];
+  const prev = $('ann-img-preview');
+  if (!f) { prev.innerHTML=''; return; }
+  const reader = new FileReader();
+  reader.onload = e => { prev.innerHTML = `<img src="${e.target.result}" style="max-width:100%;max-height:160px;border-radius:8px;border:1px solid var(--border)">`; };
+  reader.readAsDataURL(f);
+});
+
 window.saveAnn = async function() {
   const title = $('ann-ti').value.trim(), body = $('ann-bo').value.trim();
-  if (!title || !body) { toast('Fill all fields','err'); return; }
+  if (!title || !body) { toast('Fill title and message','err'); return; }
+  const file = $('ann-img').files[0];
+  let imgData = null;
+  if (file) {
+    if (file.size > 2*1024*1024) { toast('Image too large — max 2MB','err'); return; }
+    imgData = await new Promise(res => { const r=new FileReader(); r.onload=e=>res(e.target.result); r.readAsDataURL(file); });
+  }
   try {
-    await addDoc(collection(db,'announcements'), { title, body, date: serverTimestamp(), author: CU.name });
-    closeM('m-ann'); $('ann-ti').value=''; $('ann-bo').value='';
-    toast('Announcement posted!'); renderAnnouncements();
+    await addDoc(collection(db,'announcements'), { title, body, imgData, date: serverTimestamp(), author: CU.name });
+    closeM('m-ann');
+    $('ann-ti').value=''; $('ann-bo').value=''; $('ann-img').value=''; $('ann-img-preview').innerHTML='';
+    toast('Announcement posted!');
+    if (activePage==='announcements') renderAnnouncements();
+    if (activePage==='dashboard') renderDashboard();
   } catch(e) {
     toast(e.code==='permission-denied' ? 'Permission denied — check Firestore rules' : 'Failed: '+e.message, 'err');
   }
@@ -986,15 +1025,20 @@ async function renderTournaments() {
   el.innerHTML = snap.docs.map(d => {
     const t = d.data(), id = d.id;
     const statusColor = t.status==='Ongoing'?'b-green':t.status==='Upcoming'?'b-blue':'b-gray';
+    const typeColor   = t.tourType==='Ongoing' ? 'b-teal' : 'b-purple';
+    const typeLabel   = t.tourType==='Ongoing' ? '♾ Ongoing' : '📅 Seasonal';
     return `<div class="tc" onclick="openTourDetail('${id}')">
       <div class="tc-h">
-        <span class="b ${statusColor}">${esc(t.status)}</span>
+        <div class="row" style="gap:6px;margin-bottom:4px">
+          <span class="b ${typeColor}">${typeLabel}</span>
+          <span class="b ${statusColor}">${esc(t.status)}</span>
+        </div>
         <div class="tc-name">${esc(t.name)}</div>
       </div>
       <div class="tc-b">
         <span class="b b-gold">${esc(t.sport)}</span>
         <div class="tc-meta">
-          <div class="tc-mi">📅 ${t.start||'TBD'}</div>
+          <div class="tc-mi">📅 ${t.start||'TBD'}${t.end?' → '+t.end:''}</div>
         </div>
         ${t.bestPlayer?`<div class="text-sm text-muted" style="margin-top:8px">⭐ <strong style="color:var(--gold)">${esc(t.bestPlayer)}</strong></div>`:''}
       </div>
@@ -1006,30 +1050,194 @@ window.openTourDetail = async function(id) {
   activeTourId = id;
   const snap = await getDoc(doc(db,'tournaments',id));
   const t = snap.data();
+  activeTourData = t;
   $('td-name').textContent = t.name;
-  $('td-meta').textContent = `${t.sport} · ${t.status}${t.start?' · '+t.start:''}`;
-  $('td-adm-btns').style.display = CU.role==='admin' ? '' : 'none';
-  // Show accounting tab for admins only
-  document.querySelectorAll('#pg-tour-detail .tab.adm-only').forEach(t => t.style.display = CU.role==='admin' ? '' : 'none');
+  const typeLabel = t.tourType==='Ongoing' ? '♾ Ongoing' : '📅 Seasonal';
+  $('td-meta').textContent = `${typeLabel} · ${esc(t.sport)} · ${t.status}${t.start?' · '+t.start:''}`;
   nav('tour-detail');
-  tdTab('teams');
+  // Build tabs + action buttons based on type
+  buildTourDetailUI(t);
 };
 
+let activeTourData = null;
+
+function buildTourDetailUI(t) {
+  const isAdmin = CU.role === 'admin';
+  const isOngoing = t.tourType === 'Ongoing';
+
+  // Action buttons
+  const admBtns = isAdmin ? (isOngoing
+    ? `<button class="btn btn-ghost btn-sm" onclick="openM('m-session')">+ Session</button>
+       <button class="btn btn-gold btn-sm" onclick="openEditTour()">Edit</button>`
+    : `<button class="btn btn-ghost btn-sm" onclick="openAddTeam()">+ Team</button>
+       <button class="btn btn-ghost btn-sm" onclick="openAddFixture()">+ Fixture</button>
+       <button class="btn btn-gold btn-sm" onclick="openEditTour()">Edit</button>`)
+    : '';
+  $('td-action-btns').innerHTML = admBtns;
+
+  // Tabs
+  if (isOngoing) {
+    $('td-tabs').innerHTML = `
+      <div class="tab on"   onclick="tdTab('members')">Players</div>
+      <div class="tab"      onclick="tdTab('attendance')">Attendance</div>
+      ${isAdmin ? '<div class="tab" onclick="tdTab(\'accounting\')">Accounting</div>' : ''}`;
+    tdTab('members');
+  } else {
+    $('td-tabs').innerHTML = `
+      <div class="tab on"   onclick="tdTab('teams')">Teams & Players</div>
+      <div class="tab"      onclick="tdTab('fixtures')">Fixtures</div>
+      <div class="tab"      onclick="tdTab('results')">Standings</div>
+      ${isAdmin ? '<div class="tab" onclick="tdTab(\'accounting\')">Accounting</div>' : ''}`;
+    tdTab('teams');
+  }
+}
+
 window.tdTab = function(tab) {
-  document.querySelectorAll('#pg-tour-detail .tab').forEach((t,i) => t.classList.toggle('on', ['teams','fixtures','results','accounting'][i]===tab));
-  $('td-teams').style.display       = tab==='teams'      ? '' : 'none';
-  $('td-fixtures').style.display    = tab==='fixtures'   ? '' : 'none';
-  $('td-results').style.display     = tab==='results'    ? '' : 'none';
-  $('td-accounting').style.display  = tab==='accounting' ? '' : 'none';
-  if (tab==='teams')      renderTDTeams();
-  if (tab==='fixtures')   renderTDFix();
-  if (tab==='results')    renderTDResults();
+  document.querySelectorAll('#td-tabs .tab').forEach(t => t.classList.toggle('on', t.getAttribute('onclick')?.includes(`'${tab}'`)));
+  const isOngoing = activeTourData?.tourType === 'Ongoing';
+  const el = $('td-tab-content');
+  if (tab==='members')    renderOngoingMembers(el);
+  if (tab==='attendance') renderOngoingAttendance(el);
+  if (tab==='teams')      renderTDTeams(el);
+  if (tab==='fixtures')   renderTDFix(el);
+  if (tab==='results')    renderTDResults(el);
   if (tab==='accounting') renderTDAccounting();
 };
 
-async function renderTDTeams() {
+// ── ONGOING TOURNAMENT ────────────────────
+async function renderOngoingMembers(el) {
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  const snap = await getDocs(query(collection(db,'tourMembers'), where('tourId','==',activeTourId)));
+  const members = snap.docs.map(d=>({id:d.id,...d.data()}));
+  const alreadyJoined = members.find(m=>m.userId===CU.uid);
+  const isAdmin = CU.role==='admin';
+
+  let html = `<div class="row-sb mb16">
+    <div class="card-t" style="margin:0">${members.length} Players Joined</div>
+    ${!alreadyJoined ? `<button class="btn btn-gold btn-sm" onclick="joinOngoingTour()">+ Join This Tournament</button>` :
+      `<span class="b b-green" style="padding:8px 16px">✓ You're joined</span>`}
+  </div>`;
+
+  if (!members.length) {
+    html += '<div class="empty">No players joined yet. Be the first!</div>';
+  } else {
+    html += `<div class="tw"><table>
+      <thead><tr><th>#</th><th>Player</th><th>Joined</th>${isAdmin?'<th>Action</th>':''}</tr></thead>
+      <tbody>${members.map((m,i)=>`<tr>
+        <td>${i+1}</td>
+        <td><strong>${esc(m.memberName)}</strong>${m.userId===CU.uid?' <span class="b b-gray" style="font-size:10px">you</span>':''}</td>
+        <td class="text-sm text-muted">${fmtDate(m.joinedAt)}</td>
+        ${isAdmin?`<td><button class="btn btn-red btn-xs" onclick="removeTourMember('${m.id}')">Remove</button></td>`:''}
+      </tr>`).join('')}</tbody>
+    </table></div>`;
+  }
+  el.innerHTML = html;
+}
+
+window.joinOngoingTour = async function() {
+  try {
+    await addDoc(collection(db,'tourMembers'), {
+      tourId: activeTourId, userId: CU.uid, memberName: CU.name,
+      joinedAt: serverTimestamp()
+    });
+    toast('You joined the tournament!');
+    renderOngoingMembers($('td-tab-content'));
+  } catch(e) { toast('Failed: '+e.message,'err'); }
+};
+
+window.removeTourMember = async function(id) {
+  if (!confirm('Remove this player from the tournament?')) return;
+  await deleteDoc(doc(db,'tourMembers',id));
+  renderOngoingMembers($('td-tab-content'));
+  toast('Removed');
+};
+
+async function renderOngoingAttendance(el) {
+  el.innerHTML = '<div class="empty">Loading…</div>';
+  const isAdmin = CU.role==='admin';
+
+  // Sessions linked to this tournament
+  const sessSnap = await getDocs(query(collection(db,'sessions'), where('tourId','==',activeTourId), orderBy('date','desc')));
+  // All joined members
+  const membSnap = await getDocs(query(collection(db,'tourMembers'), where('tourId','==',activeTourId)));
+  const members  = membSnap.docs.map(d=>({uid:d.data().userId, name:d.data().memberName}));
+  const attSnap  = await getDocs(collection(db,'attendance'));
+  const attAll   = attSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+  let html = '';
+  if (isAdmin) {
+    html += `<div class="row-sb mb16">
+      <div></div>
+      <button class="btn btn-gold btn-sm" onclick="openTourSession()">+ New Session</button>
+    </div>`;
+  }
+
+  if (sessSnap.empty) { el.innerHTML = html + '<div class="empty">No sessions yet.</div>'; return; }
+
+  for (const sd of sessSnap.docs) {
+    const sess = sd.data();
+    const sessAtts = attAll.filter(a=>a.sessionId===sd.id);
+    const myAtt = sessAtts.find(a=>a.userId===CU.uid);
+    const presentCount = sessAtts.filter(a=>a.present).length;
+
+    html += `<div class="card mb20">
+      <div class="row-sb mb16">
+        <div><strong>${fmtDate(sess.date)}</strong>
+          <div class="text-sm text-muted">${esc(sess.notes||'')} · ${presentCount} present</div>
+        </div>
+        ${isAdmin?`<button class="btn btn-red btn-xs" onclick="delSession('${sd.id}')">Delete</button>`:''}
+      </div>`;
+
+    if (isAdmin) {
+      html += `<div class="tw"><table><thead><tr><th>Player</th><th>Status</th><th>Action</th></tr></thead><tbody>`;
+      members.forEach(m => {
+        const att = sessAtts.find(a=>a.userId===m.uid);
+        html += `<tr>
+          <td>${esc(m.name)}</td>
+          <td><span class="b b-${att?.present?'green':'gray'}">${att?.present?'Present':'Absent'}</span></td>
+          <td><button class="btn btn-sm ${att?.present?'btn-red':'btn-teal'}" onclick="toggleAtt('${sd.id}','${m.uid}')">
+            ${att?.present?'Mark Absent':'Mark Present'}</button></td>
+        </tr>`;
+      });
+      html += `</tbody></table></div>`;
+      html += `<div id="sess-acc-${sd.id}"><div class="text-muted text-sm" style="margin-top:8px">Loading finances…</div></div>`;
+    } else {
+      // Member: only show if they are joined
+      const isMember = members.find(m=>m.uid===CU.uid);
+      if (isMember) {
+        html += `<div>
+          <div class="text-sm text-muted mb16">Your attendance: <span class="b b-${myAtt?.present?'green':'gray'}">${myAtt?.present?'Present':'Not marked'}</span></div>
+          ${!myAtt?.present?`<button class="btn btn-teal btn-sm" onclick="markSelf('${sd.id}')">✓ Mark Myself Present</button>`:'<span class="b b-green">✓ Marked</span>'}
+        </div>`;
+      } else {
+        html += `<div class="text-sm text-muted">Join this tournament to mark attendance.</div>`;
+      }
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+
+  if (isAdmin) {
+    for (const sd of sessSnap.docs) {
+      const accEl = document.getElementById('sess-acc-' + sd.id);
+      if (accEl) renderSessionAcc(sd.id, accEl);
+    }
+  }
+}
+
+window.openTourSession = function() {
+  $('ss-sport').value = activeTourData?.sport || 'Football';
+  $('ss-date').value = '';
+  $('ss-notes').value = '';
+  $('ss-tour-id').value = activeTourId;
+  openM('m-session');
+};
+
+// ── SEASONAL TOURNAMENT ───────────────────
+async function renderTDTeams(el) {
+  el = el || $('td-tab-content');
+  el.innerHTML = '<div class="empty">Loading…</div>';
   const snap = await getDocs(query(collection(db,'teams'), where('tourId','==',activeTourId)));
-  const el = $('td-teams');
   if (snap.empty) { el.innerHTML='<div class="empty">No teams added yet.</div>'; return; }
   el.innerHTML = `<div class="g2">${snap.docs.map(d => {
     const t = d.data();
@@ -1043,16 +1251,17 @@ async function renderTDTeams() {
   }).join('')}</div>`;
 }
 
-async function renderTDFix() {
+async function renderTDFix(el) {
+  el = el || $('td-tab-content');
+  el.innerHTML = '<div class="empty">Loading…</div>';
   const snap = await getDocs(query(collection(db,'fixtures'), where('tourId','==',activeTourId)));
-  const el = $('td-fixtures');
   if (snap.empty) { el.innerHTML='<div class="empty">No fixtures yet.</div>'; return; }
   el.innerHTML = snap.docs.map(d => {
     const f = d.data();
     return `<div class="fx">
       <div class="fx-team">${esc(f.home)}</div>
-      ${f.scoreHome!==undefined&&f.scoreHome!=='' ?
-        `<div class="fx-score">${f.scoreHome} – ${f.scoreAway}</div>` :
+      ${f.scoreHome!==undefined&&f.scoreHome!==''?
+        `<div class="fx-score">${f.scoreHome} – ${f.scoreAway}</div>`:
         `<div class="fx-vs">${f.date?fmtDate(f.date):'VS'}</div>`}
       <div class="fx-team r">${esc(f.away)}</div>
       <div class="text-sm text-muted" style="min-width:70px;text-align:right">${esc(f.venue||'')}</div>
@@ -1061,10 +1270,11 @@ async function renderTDFix() {
   }).join('');
 }
 
-async function renderTDResults() {
+async function renderTDResults(el) {
+  el = el || $('td-tab-content');
+  el.innerHTML = '<div class="empty">Loading…</div>';
   const snap = await getDocs(query(collection(db,'fixtures'), where('tourId','==',activeTourId)));
   const fixtures = snap.docs.map(d=>d.data()).filter(f=>f.scoreHome!==undefined&&f.scoreHome!=='');
-  const el = $('td-results');
   if (!fixtures.length) { el.innerHTML='<div class="empty">No results recorded yet.</div>'; return; }
   const T = {};
   fixtures.forEach(f => {
@@ -1087,6 +1297,21 @@ async function renderTDResults() {
     </tr>`).join('')}</tbody>
   </table></div>`;
 }
+
+// Seasonal join flow
+window.openJoinSeasonal = function() { openM('m-join-seasonal'); };
+window.confirmJoinSeasonal = async function() {
+  const role = $('join-role').value;
+  try {
+    await addDoc(collection(db,'tourMembers'), {
+      tourId: activeTourId, userId: CU.uid, memberName: CU.name,
+      playerRole: role, joinedAt: serverTimestamp()
+    });
+    closeM('m-join-seasonal');
+    toast(`Joined as ${role}!`);
+    renderTDTeams($('td-tab-content'));
+  } catch(e) { toast('Failed: '+e.message,'err'); }
+};
 
 window.openAddTeam = function() { $('team-n').value=''; $('team-p').value=''; openM('m-team'); };
 
@@ -1141,28 +1366,51 @@ window.saveFix = async function() {
   closeM('m-fix'); toast('Fixture saved!'); renderTDFix();
 };
 
+window.onTourTypeChange = function() {
+  const isOngoing = $('t-type').value === 'Ongoing';
+  $('t-end-wrap').style.display = isOngoing ? 'none' : '';
+};
+
 window.openNewTournament = function() {
-  editTourId = null; $('m-tour-title').textContent='New Tournament';
+  editTourId = null;
+  $('m-tour-title').textContent = 'New Tournament';
   ['t-name','t-start','t-end','t-best','t-desc'].forEach(id => $(id).value='');
-  $('t-status').value='Upcoming';
+  $('t-type').value = 'Ongoing';
+  $('t-status').value = 'Upcoming';
+  $('t-end-wrap').style.display = 'none';
   openM('m-tour');
 };
 
 window.openEditTour = async function() {
-  const snap = await getDoc(doc(db,'tournaments',activeTourId)); const t = snap.data();
-  editTourId = activeTourId; $('m-tour-title').textContent='Edit Tournament';
-  $('t-name').value=t.name; $('t-sport').value=t.sport;
-  $('t-start').value=t.start||''; $('t-end').value=t.end||'';
-  $('t-status').value=t.status; $('t-best').value=t.bestPlayer||''; $('t-desc').value=t.desc||'';
+  const snap = await getDoc(doc(db,'tournaments',activeTourId));
+  const t = snap.data();
+  editTourId = activeTourId;
+  $('m-tour-title').textContent = 'Edit Tournament';
+  $('t-name').value  = t.name;
+  $('t-type').value  = t.tourType || 'Seasonal';
+  $('t-sport').value = t.sport;
+  $('t-start').value = t.start || '';
+  $('t-end').value   = t.end   || '';
+  $('t-status').value = t.status;
+  $('t-best').value  = t.bestPlayer || '';
+  $('t-desc').value  = t.desc  || '';
+  $('t-end-wrap').style.display = t.tourType==='Ongoing' ? 'none' : '';
   openM('m-tour');
 };
 
 window.saveTour = async function() {
   const name = $('t-name').value.trim();
   if (!name) { toast('Enter tournament name','err'); return; }
-  const data = { name, sport:$('t-sport').value, start:$('t-start').value, end:$('t-end').value,
-                 status:$('t-status').value, bestPlayer:$('t-best').value.trim(), desc:$('t-desc').value.trim(),
-                 updatedAt: serverTimestamp() };
+  const tourType = $('t-type').value;
+  const data = {
+    name, tourType, sport: $('t-sport').value,
+    start: $('t-start').value,
+    end: tourType==='Ongoing' ? '' : $('t-end').value,
+    status: $('t-status').value,
+    bestPlayer: $('t-best').value.trim(),
+    desc: $('t-desc').value.trim(),
+    updatedAt: serverTimestamp()
+  };
   try {
     if (editTourId) {
       await updateDoc(doc(db,'tournaments',editTourId), data);
@@ -1173,12 +1421,7 @@ window.saveTour = async function() {
     }
     closeM('m-tour'); toast('Tournament saved!'); renderTournaments();
   } catch(e) {
-    console.error('saveTour error:', e);
-    if (e.code === 'permission-denied') {
-      toast('Permission denied — check Firestore rules in Firebase Console','err');
-    } else {
-      toast('Save failed: ' + e.message, 'err');
-    }
+    toast(e.code==='permission-denied'?'Permission denied — check Firestore rules':'Save failed: '+e.message,'err');
   }
 };
 
@@ -1200,7 +1443,7 @@ async function renderAttContent() {
   const attSnap = await getDocs(collection(db,'attendance'));
   const attAll = attSnap.docs.map(d=>({id:d.id,...d.data()}));
 
-  const members = isAdmin ? (await getDocs(query(collection(db,'users'), where('sport','==',attSport), where('role','==','member')))).docs.map(d=>({uid:d.id,...d.data()})) : [];
+  const members = isAdmin ? (await getDocs(query(collection(db,'users'), where('role','==','member')))).docs.map(d=>({uid:d.id,...d.data()})) : [];
 
   let html = '';
   for (const sd of sessSnap.docs) {
@@ -1266,13 +1509,21 @@ window.markSelf = async function(sessionId) {
 };
 
 window.saveSession = async function() {
-  const sport=$('ss-sport').value, date=$('ss-date').value, notes=$('ss-notes').value;
+  const sport  = $('ss-sport').value;
+  const date   = $('ss-date').value;
+  const notes  = $('ss-notes').value;
+  const tourId = $('ss-tour-id').value || null;
   if (!date) { toast('Select a date','err'); return; }
   try {
-    await addDoc(collection(db,'sessions'), { sport, date, notes, created: serverTimestamp() });
-    closeM('m-session'); attSport=sport; toast('Session created!'); renderAttendance();
+    await addDoc(collection(db,'sessions'), { sport, date, notes, tourId, created: serverTimestamp() });
+    closeM('m-session');
+    $('ss-tour-id').value = '';
+    toast('Session created!');
+    // If opened from tournament detail, refresh that view
+    if (tourId) { renderOngoingAttendance($('td-tab-content')); }
+    else { attSport=sport; renderAttendance(); }
   } catch(e) {
-    toast(e.code==='permission-denied' ? 'Permission denied — check Firestore rules' : 'Failed: '+e.message, 'err');
+    toast(e.code==='permission-denied'?'Permission denied — check Firestore rules':'Failed: '+e.message,'err');
   }
 };
 
@@ -1409,7 +1660,6 @@ async function renderMembers() {
     return `<tr>
       <td><strong>${esc(u.name)}</strong>${isSelf?' <span class="b b-gray" style="font-size:10px">you</span>':''}</td>
       <td>${esc(u.email)}</td>
-      <td><span class="b b-blue">${esc(u.sport)}</span></td>
       <td>${roleHtml}</td>
       <td class="text-sm text-muted">${fmtDate(u.joined)}</td>
       <td>${pHtml}</td>
@@ -1431,18 +1681,23 @@ window.setRole = async function(uid, newRole) {
   renderMembers();
 };
 
-// ── PROFILE ───────────────────────────────
 async function renderProfile() {
   const now = new Date();
   const tm = MONTHS[now.getMonth()], ty = now.getFullYear();
-  const pSnap = await getDocs(query(collection(db,'payments'), where('memberId','==',CU.uid), orderBy('uploaded','desc')));
+  const [pSnap, tourMembSnap, tourSnap] = await Promise.all([
+    getDocs(query(collection(db,'payments'), where('memberId','==',CU.uid), orderBy('uploaded','desc'))),
+    getDocs(query(collection(db,'tourMembers'), where('userId','==',CU.uid))),
+    getDocs(collection(db,'tournaments'))
+  ]);
   const pays = pSnap.docs.map(d=>({id:d.id,...d.data()}));
   const thisPay = pays.find(p=>p.month===tm&&p.year===ty);
+  const allTours = tourSnap.docs.map(d=>({id:d.id,...d.data()}));
+  const myTourIds = tourMembSnap.docs.map(d=>d.data().tourId);
+  const myTours = allTours.filter(t=>myTourIds.includes(t.id));
 
   $('prof-info').innerHTML = `
     <div class="fg"><label>Name</label><strong style="font-size:15px">${esc(CU.name)}</strong></div>
     <div class="fg"><label>Email</label>${esc(CU.email)}</div>
-    <div class="fg"><label>Sport</label><span class="b b-blue">${esc(CU.sport)}</span></div>
     <div class="fg"><label>Role</label><span class="b b-${CU.role==='admin'?'gold':'gray'}">${CU.role}</span></div>
     <div class="fg"><label>Member Since</label><div class="text-sm text-muted">${fmtDate(CU.joined)}</div></div>`;
 
@@ -1451,6 +1706,44 @@ async function renderProfile() {
       <div class="text-sm">${p.month} ${p.year}</div>
       <span class="b b-${p.status==='approved'?'green':p.status==='rejected'?'red':'gold'}">${p.status}</span>
     </div>`).join('') : '<div class="empty">No payment history.</div>';
+
+  // My Tournaments
+  $('prof-tours').innerHTML = myTours.length ? `
+    <div class="g2">${myTours.map(t=>{
+      const mem = tourMembSnap.docs.find(d=>d.data().tourId===t.id)?.data();
+      const typeColor = t.tourType==='Ongoing'?'b-teal':'b-purple';
+      return `<div style="padding:12px;background:var(--s2);border:1px solid var(--border);border-radius:10px;cursor:pointer" onclick="openTourDetail('${t.id}')">
+        <div class="row" style="gap:6px;margin-bottom:6px">
+          <span class="b ${typeColor}">${t.tourType==='Ongoing'?'♾ Ongoing':'📅 Seasonal'}</span>
+          <span class="b b-gold">${esc(t.sport)}</span>
+        </div>
+        <div style="font-weight:600">${esc(t.name)}</div>
+        ${mem?.playerRole?`<div class="text-sm text-muted" style="margin-top:4px">Role: ${esc(mem.playerRole)}</div>`:''}
+      </div>`;
+    }).join('')}
+    </div>
+    <div style="margin-top:14px">
+      <div class="card-t" style="margin-bottom:10px">Join More Tournaments</div>
+      <div id="prof-available-tours"></div>
+    </div>` :
+    `<div class="empty">You haven't joined any tournaments yet.</div>
+     <div style="margin-top:12px"><div id="prof-available-tours"></div></div>`;
+
+  // Available tournaments to join
+  const available = allTours.filter(t=>!myTourIds.includes(t.id) && t.status!=='Completed');
+  const avEl = $('prof-available-tours');
+  if (avEl && available.length) {
+    avEl.innerHTML = `<div class="g2">${available.map(t=>`
+      <div style="padding:10px 14px;background:var(--s2);border:1px solid var(--border);border-radius:10px;display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div style="font-weight:600;font-size:13px">${esc(t.name)}</div>
+          <div class="text-sm text-muted">${esc(t.sport)} · ${t.tourType==='Ongoing'?'♾ Ongoing':'📅 Seasonal'}</div>
+        </div>
+        <button class="btn btn-teal btn-xs" onclick="quickJoinTour('${t.id}','${t.tourType||'Ongoing'}')">Join</button>
+      </div>`).join('')}</div>`;
+  } else if (avEl) {
+    avEl.innerHTML = '<div class="text-sm text-muted">No other active tournaments to join.</div>';
+  }
 
   const uploadEl = $('prof-upload');
   if (CU.role==='admin') { uploadEl.innerHTML='<div class="text-muted text-sm">Admin accounts do not require payment.</div>'; return; }
@@ -1466,6 +1759,29 @@ async function renderProfile() {
     <div class="fg"><label>Receipt Image (photo of bank transfer)</label><input type="file" id="pm-file" accept="image/*"></div>
     <button class="btn btn-gold" onclick="uploadReceipt()">Submit for Approval</button>`;
 }
+
+// Quick join from profile page
+window.quickJoinTour = async function(tourId, tourType) {
+  if (tourType === 'Seasonal') {
+    // Store tourId then open role modal
+    activeTourId = tourId;
+    openM('m-join-seasonal');
+    // After joining, re-render profile
+    const orig = window.confirmJoinSeasonal;
+    window.confirmJoinSeasonal = async function() {
+      await orig();
+      renderProfile();
+      window.confirmJoinSeasonal = orig;
+    };
+  } else {
+    try {
+      await addDoc(collection(db,'tourMembers'), {
+        tourId, userId: CU.uid, memberName: CU.name, joinedAt: serverTimestamp()
+      });
+      toast('Joined!'); renderProfile();
+    } catch(e) { toast('Failed: '+e.message,'err'); }
+  }
+};
 
 window.uploadReceipt = function() {
   const month=$('pm-month').value, year=parseInt($('pm-year').value);
