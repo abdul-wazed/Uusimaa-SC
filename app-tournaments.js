@@ -142,7 +142,9 @@ function buildTourDetailUI(t) {
   if (isOngoing) {
     tabs=`<div class="tab on" onclick="tdTab('members')">Players</div>
           <div class="tab" onclick="tdTab('attendance')">Attendance</div>
-          ${isAdmin?'<div class="tab" onclick="tdTab(\'accounting\')">Accounting</div>':''}`;
+          ${isAdmin?'<div class="tab" onclick="tdTab(\'accounting\')">Accounting</div>':''}
+          <div class="tab" onclick="tdTab('myreport')">📄 My Report</div>
+          ${isAdmin?`<div class="tab" onclick="tdTab('adminreport')">📊 Reports</div>`:''}`;
   } else {
     tabs=`<div class="tab on" onclick="tdTab('teams')">Teams</div>
           <div class="tab" onclick="tdTab('fixtures')">Fixtures & Results</div>
@@ -160,13 +162,15 @@ function buildTourDetailUI(t) {
 window.tdTab = function(tab) {
   document.querySelectorAll('#td-tabs .tab').forEach(t=>t.classList.toggle('on',t.getAttribute('onclick')?.includes(`'${tab}'`)));
   const el=$('td-tab-content');
-  if (tab==='members')    renderOngoingMembers(el);
-  if (tab==='attendance') renderOngoingAttendance(el);
-  if (tab==='teams')      renderTDTeams(el);
-  if (tab==='fixtures')   renderTDFix(el);
-  if (tab==='standings')  renderTDStandings(el);
-  if (tab==='accounting') renderTDAccounting();
-  if (tab==='report')     renderTDReport(el);
+  if (tab==='members')     renderOngoingMembers(el);
+  if (tab==='attendance')  renderOngoingAttendance(el);
+  if (tab==='teams')       renderTDTeams(el);
+  if (tab==='fixtures')    renderTDFix(el);
+  if (tab==='standings')   renderTDStandings(el);
+  if (tab==='accounting')  renderTDAccounting();
+  if (tab==='report')      renderTDReport(el);
+  if (tab==='myreport')    renderMyAttReport(el);
+  if (tab==='adminreport') renderAdminReportPanel(el);
 };
 
 // ─────────────────────────────────────────────
@@ -503,4 +507,114 @@ window.quickJoinTour = async function(tourId, tourType) {
       toast('Joined!'); window.renderProfile();
     }catch(e){toast('Failed: '+e.message,'err');}
   }
+};
+
+// ─────────────────────────────────────────────
+// MY ATTENDANCE REPORT TAB (member sees own)
+// ─────────────────────────────────────────────
+async function renderMyAttReport(el) {
+  el.innerHTML='<div class="empty">Loading your attendance…</div>';
+  const tourId=window.activeTourId, t=window.activeTourData;
+  const uid=window.CU.uid;
+  const sessSnap=await getDocs(query(collection(db,'sessions'),where('tourId','==',tourId)));
+  const sessions=sessSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.date.localeCompare(b.date));
+  const attSnap=await getDocs(query(collection(db,'attendance'),where('tourId','==',tourId),where('userId','==',uid)));
+  const attAll=attSnap.docs.map(d=>d.data());
+
+  if (!sessions.length){el.innerHTML='<div class="empty">No sessions yet.</div>';return;}
+
+  let present=0;
+  const rows=sessions.map(s=>{
+    const att=attAll.find(a=>a.sessionId===s.id);
+    const isPresent=att?.present;
+    if(isPresent)present++;
+    return `<tr>
+      <td>${s.date}</td>
+      <td>${esc(s.notes||'—')}</td>
+      <td><span class="b b-${isPresent?'green':'gray'}">${isPresent?'Present':'Absent'}</span></td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML=`
+    <div class="row-sb mb16">
+      <div>
+        <strong>${window.CU.name}</strong>
+        <div class="text-sm text-muted">${present} / ${sessions.length} sessions attended</div>
+      </div>
+      <button class="btn btn-teal btn-sm" onclick="downloadMyAttendance('${tourId}','${esc(t?.name||'')}')">⬇ Download CSV</button>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>Date</th><th>Notes</th><th>Status</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+}
+
+// ─────────────────────────────────────────────
+// ADMIN REPORT PANEL
+// ─────────────────────────────────────────────
+async function renderAdminReportPanel(el) {
+  el.innerHTML='<div class="empty">Loading members…</div>';
+  const tourId=window.activeTourId, t=window.activeTourData;
+  const membSnap=await getDocs(query(collection(db,'tourMembers'),where('tourId','==',tourId)));
+  const members=membSnap.docs.map(d=>({uid:d.data().userId,name:d.data().memberName}));
+
+  el.innerHTML=`
+    <div class="card mb20">
+      <div class="card-t">Download Reports</div>
+      <div class="fg"><label>Report Type</label>
+        <select id="rep-type">
+          <option value="attendance">Attendance Report</option>
+          <option value="payment">Payment Report</option>
+        </select>
+      </div>
+      <div class="fg"><label>Member</label>
+        <select id="rep-member">
+          <option value="all">All Members (${members.length})</option>
+          ${members.map(m=>`<option value="${m.uid}">${esc(m.name)}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-gold" onclick="runAdminReport('${tourId}','${esc(t?.name||'')}')">⬇ Download CSV</button>
+    </div>
+
+    <div class="card-t">Attendance Overview</div>
+    <div id="att-overview-table"><div class="empty">Loading…</div></div>`;
+
+  // Load attendance overview table
+  renderAttOverviewTable(tourId, members);
+}
+
+async function renderAttOverviewTable(tourId, members) {
+  const sessSnap=await getDocs(query(collection(db,'sessions'),where('tourId','==',tourId)));
+  const sessions=sessSnap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.date.localeCompare(b.date));
+  const attSnap=await getDocs(query(collection(db,'attendance'),where('tourId','==',tourId)));
+  const attAll=attSnap.docs.map(d=>d.data());
+  const el=document.getElementById('att-overview-table');
+  if (!el) return;
+  if (!sessions.length){el.innerHTML='<div class="empty">No sessions yet.</div>';return;}
+
+  const dateHeaders=sessions.map(s=>`<th style="font-size:10px;white-space:nowrap">${s.date}</th>`).join('');
+  const bodyRows=members.map(m=>{
+    const cells=sessions.map(s=>{
+      const att=attAll.find(a=>a.sessionId===s.id&&a.userId===m.uid);
+      return `<td style="text-align:center">${att?.present?'<span class="b b-green" style="font-size:10px">✓</span>':'<span style="color:var(--muted);font-size:11px">—</span>'}</td>`;
+    }).join('');
+    const total=sessions.filter(s=>attAll.find(a=>a.sessionId===s.id&&a.userId===m.uid&&a.present)).length;
+    return `<tr><td><strong>${esc(m.name)}</strong></td>${cells}<td style="text-align:center"><strong>${total}/${sessions.length}</strong></td></tr>`;
+  }).join('');
+
+  el.innerHTML=`<div class="tw" style="overflow-x:auto"><table>
+    <thead><tr><th>Member</th>${dateHeaders}<th>Total</th></tr></thead>
+    <tbody>${bodyRows}</tbody>
+  </table></div>`;
+}
+
+window.runAdminReport = async function(tourId, tourName) {
+  const type=$('rep-type').value;
+  const membId=$('rep-member').value;
+  const membSnap=await getDocs(query(collection(db,'tourMembers'),where('tourId','==',tourId)));
+  const allMembers=membSnap.docs.map(d=>({uid:d.data().userId,name:d.data().memberName}));
+  const members=membId==='all'?allMembers:allMembers.filter(m=>m.uid===membId);
+  window._reportMembers=members;
+  if (type==='attendance') await downloadAttendanceCSV(tourId,members);
+  else await downloadPaymentCSV(members);
 };

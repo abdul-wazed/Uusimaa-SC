@@ -417,6 +417,13 @@ input[type="file"]{font-size:13px}
   <button class="btn btn-gold btn-full" onclick="saveAccEntry()">Save Entry</button>
 </div></div>
 
+<!-- Report Modal -->
+<div class="ov" id="m-report"><div class="modal">
+  <button class="mc" onclick="closeM('m-report')">✕</button>
+  <div class="modal-t" id="report-modal-title">Download Report</div>
+  <div id="report-options"></div>
+</div></div>
+
 <!-- Helper: regular session button wires to correct modal -->
 <script>
 window.openRegularSession = function() {
@@ -434,6 +441,7 @@ window.openRegularSession = function() {
 <script type="module" src="app-payments.js"></script>
 <script type="module" src="app-accounting.js"></script>
 <script type="module" src="app-profile.js"></script>
+<script type="module" src="app-reports.js"></script>
 
 </body>
 </html>
