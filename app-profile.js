@@ -17,7 +17,7 @@ window.renderProfile = async function() {
   const myTours=allTours.filter(t=>myTourIds.includes(t.id));
 
   // ── Due warnings banner at top of profile ──
-  const dueWarnings = CU.role!=='admin' ? buildDueWarnings(pays,now) : '';
+  const dueWarnings = CU.role!=='admin' ? buildDueWarnings(pays,now,CU.joined) : '';
 
   $('prof-info').innerHTML=`
     ${dueWarnings}

@@ -48,7 +48,8 @@ async function renderMemberPays(el) {
   const pays=snap.docs.map(d=>({id:d.id,...d.data()}));
   const now=new Date(); const tm=MONTHS[now.getMonth()], ty=now.getFullYear();
   const thisPay=pays.find(p=>p.month===tm&&p.year===ty);
-  const dueWarnings=buildDueWarnings(pays,now);
+  // Pass joined date so we don't warn for months before they registered
+  const dueWarnings=buildDueWarnings(pays,now,window.CU.joined);
   let statusHtml='';
   if (!thisPay) statusHtml=`<div class="due-banner">⚠️ Monthly fee is due for <strong>${tm} ${ty}</strong></div>`;
   else if (thisPay.status==='pending') statusHtml=`<div style="background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.3);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--gold)">⏳ Receipt for <strong>${tm} ${ty}</strong> is under admin review</div>`;
@@ -77,12 +78,18 @@ async function renderMemberPays(el) {
     </table></div>`:'<div class="empty">No payments submitted yet.</div>'}`;
 }
 
-// Check past 6 months for unpaid dues
-function buildDueWarnings(pays, now) {
+// Check past months for unpaid dues — only from the month they joined
+function buildDueWarnings(pays, now, joinedAt) {
   const warnings=[];
+  const joinDate = joinedAt?.toDate ? joinedAt.toDate() : (joinedAt ? new Date(joinedAt) : new Date());
+  const joinYear  = joinDate.getFullYear();
+  const joinMonth = joinDate.getMonth(); // 0-indexed
+
   for (let i=1;i<=6;i++) {
     const d=new Date(now.getFullYear(),now.getMonth()-i,1);
     const month=MONTHS[d.getMonth()], year=d.getFullYear();
+    // Skip months before they joined
+    if (d.getFullYear() < joinYear || (d.getFullYear()===joinYear && d.getMonth() < joinMonth)) continue;
     const p=pays.find(p=>p.month===month&&p.year===year);
     if (!p||p.status==='rejected') {
       warnings.push(`<div class="due-banner" style="margin-bottom:8px">⚠️ Monthly fee is due for <strong>${month} ${year}</strong>${p?.status==='rejected'?' — previous receipt was rejected':''}</div>`);

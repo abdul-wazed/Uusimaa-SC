@@ -224,16 +224,23 @@ async function renderOngoingMembers(el) {
   const tpSnap=await getDocs(query(collection(db,'tourPayments'),where('tourId','==',tourId),where('month','==',tm),where('year','==',ty)));
   const tourPays=tpSnap.docs.map(d=>({id:d.id,...d.data()}));
 
-  // My payment status
+  // My payment status banner — only show if joined this month or later
   const myPay=tourPays.find(p=>p.memberId===window.CU.uid);
   let myPayBanner='';
   if (!isAdmin && alreadyJoined) {
-    if (!myPay) {
-      myPayBanner=`<div class="due-banner mb16">⚠️ Your monthly subscription is due for <strong>${tm} ${ty}</strong> — <button class="btn btn-gold btn-xs" onclick="tdTab('tourpay')" style="margin-left:8px">Pay Now</button></div>`;
-    } else if (myPay.status==='pending') {
-      myPayBanner=`<div style="background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.3);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--gold);margin-bottom:16px">⏳ Your payment for ${tm} ${ty} is under review</div>`;
-    } else if (myPay.status==='approved') {
-      myPayBanner=`<div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.25);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--green);margin-bottom:16px">✓ Payment for ${tm} ${ty} approved${myPay.amount?' — €'+fmt2dp(myPay.amount):''}</div>`;
+    // Get joined date from the member record
+    const joinedAtRaw = alreadyJoined.joinedAt;
+    const joinDate = joinedAtRaw?.toDate ? joinedAtRaw.toDate() : (joinedAtRaw ? new Date(joinedAtRaw) : new Date());
+    const joinedThisMonthOrLater = (joinDate.getFullYear() < ty) ||
+      (joinDate.getFullYear()===ty && joinDate.getMonth() <= now.getMonth());
+    if (joinedThisMonthOrLater) {
+      if (!myPay) {
+        myPayBanner=`<div class="due-banner mb16">⚠️ Your monthly subscription is due for <strong>${tm} ${ty}</strong> — <button class="btn btn-gold btn-xs" onclick="tdTab('tourpay')" style="margin-left:8px">Pay Now</button></div>`;
+      } else if (myPay.status==='pending') {
+        myPayBanner=`<div style="background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.3);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--gold);margin-bottom:16px">⏳ Your payment for ${tm} ${ty} is under review</div>`;
+      } else if (myPay.status==='approved') {
+        myPayBanner=`<div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.25);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--green);margin-bottom:16px">✓ Payment for ${tm} ${ty} approved${myPay.amount?' — €'+fmt2dp(myPay.amount):''}</div>`;
+      }
     }
   }
 
@@ -621,8 +628,10 @@ async function renderTourPayments(el) {
     // Member: own payments + upload form
     const myPays=allTp.filter(p=>p.memberId===window.CU.uid).sort((a,b)=>`${b.year}${MONTHS.indexOf(b.month)}`.localeCompare(`${a.year}${MONTHS.indexOf(a.month)}`));
     const thisPay=myPays.find(p=>p.month===tm&&p.year===ty);
-    // Due warnings for past months
-    const dueWarnings=buildDueWarningsForTour(myPays,now);
+    // Get joined date so we don't warn for months before they joined
+    const joinSnap2=await getDocs(query(collection(db,'tourMembers'),where('tourId','==',tourId),where('userId','==',window.CU.uid)));
+    const joinedAt=joinSnap2.docs[0]?.data()?.joinedAt || null;
+    const dueWarnings=buildDueWarningsForTour(myPays,now,joinedAt);
     let statusHtml='';
     if (!thisPay) statusHtml=`<div class="due-banner">⚠️ Your monthly subscription is due for <strong>${tm} ${ty}</strong></div>`;
     else if (thisPay.status==='pending') statusHtml=`<div style="background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.3);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--gold)">⏳ Receipt for <strong>${tm} ${ty}</strong> is under review</div>`;
@@ -653,11 +662,19 @@ async function renderTourPayments(el) {
   }
 }
 
-function buildDueWarningsForTour(pays, now) {
+function buildDueWarningsForTour(pays, now, joinedAt) {
   const warnings=[];
-  for (let i=1;i<=3;i++) {
+  // Parse join date — only warn from the month they joined onwards
+  const joinDate = joinedAt?.toDate ? joinedAt.toDate() : (joinedAt ? new Date(joinedAt) : new Date());
+  // First full month of obligation = same month as joining
+  const joinYear  = joinDate.getFullYear();
+  const joinMonth = joinDate.getMonth(); // 0-indexed
+
+  for (let i=1;i<=6;i++) {
     const d=new Date(now.getFullYear(),now.getMonth()-i,1);
     const month=MONTHS[d.getMonth()], year=d.getFullYear();
+    // Skip months before they joined
+    if (d.getFullYear() < joinYear || (d.getFullYear()===joinYear && d.getMonth() < joinMonth)) continue;
     const p=pays.find(p=>p.month===month&&p.year===year);
     if (!p||p.status==='rejected') {
       warnings.push(`<div class="due-banner" style="margin-bottom:8px">⚠️ Monthly subscription is due for <strong>${month} ${year}</strong>${p?.status==='rejected'?' — previous receipt was rejected':''}</div>`);
