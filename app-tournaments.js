@@ -11,28 +11,58 @@ window.renderTournaments = async function() {
   const snap = await getDocs(query(collection(db,'tournaments'), orderBy('name')));
   const el = $('tour-list');
   if (snap.empty) { el.innerHTML='<div class="empty" style="grid-column:1/-1">No tournaments yet.</div>'; return; }
+  const isAdmin = window.CU.role==='admin';
   el.innerHTML = snap.docs.map(d => {
     const t=d.data(), id=d.id;
     const sc = t.status==='Ongoing'?'b-green':t.status==='Upcoming'?'b-blue':'b-gray';
     const tc = t.tourType==='Ongoing'?'b-teal':'b-purple';
     const tl = t.tourType==='Ongoing'?'♾ Ongoing':'📅 Seasonal';
-    return `<div class="tc" onclick="openTourDetail('${id}')">
-      <div class="tc-h">
+    return `<div class="tc">
+      <div class="tc-h" onclick="openTourDetail('${id}')" style="cursor:pointer">
         <div class="row" style="gap:6px;margin-bottom:4px">
           <span class="b ${tc}">${tl}</span>
           <span class="b ${sc}">${esc(t.status)}</span>
         </div>
         <div class="tc-name">${esc(t.name)}</div>
       </div>
-      <div class="tc-b">
-        <span class="b b-gold">${esc(t.sport)}</span>
-        <div class="tc-meta">
-          <div class="tc-mi">📅 ${t.start||'TBD'}${t.end?' → '+t.end:''}</div>
-          ${t.status==='Finished'&&t.winner?`<div class="tc-mi">🏆 ${esc(t.winner)}</div>`:''}
+      <div class="tc-b" style="display:flex;justify-content:space-between;align-items:flex-end">
+        <div onclick="openTourDetail('${id}')" style="cursor:pointer;flex:1">
+          <span class="b b-gold">${esc(t.sport)}</span>
+          <div class="tc-meta">
+            <div class="tc-mi">📅 ${t.start||'TBD'}${t.end?' → '+t.end:''}</div>
+            ${t.status==='Finished'&&t.winner?`<div class="tc-mi">🏆 ${esc(t.winner)}</div>`:''}
+          </div>
         </div>
+        ${isAdmin?`<button class="btn btn-red btn-xs" onclick="deleteTournament('${id}','${esc(t.name)}')" title="Delete tournament">🗑</button>`:''}
       </div>
     </div>`;
   }).join('');
+};
+
+window.deleteTournament = async function(id, name) {
+  if (!confirm(`Delete tournament "${name}"?\n\nThis will also delete all teams, fixtures, sessions, attendance and accounting entries for this tournament. This cannot be undone.`)) return;
+  try {
+    // Delete all related sub-collections
+    const [teamsSnap,fixSnap,sessSnap,membSnap,accSnap] = await Promise.all([
+      getDocs(query(collection(db,'teams'),where('tourId','==',id))),
+      getDocs(query(collection(db,'fixtures'),where('tourId','==',id))),
+      getDocs(query(collection(db,'sessions'),where('tourId','==',id))),
+      getDocs(query(collection(db,'tourMembers'),where('tourId','==',id))),
+      getDocs(query(collection(db,'accounting'),where('scopeId','==',id),where('scopeType','==','tournament')))
+    ]);
+    const delAll = [...teamsSnap.docs,...fixSnap.docs,...sessSnap.docs,...membSnap.docs,...accSnap.docs];
+    // Delete attendance for each session
+    for (const sd of sessSnap.docs) {
+      const attSnap=await getDocs(query(collection(db,'attendance'),where('sessionId','==',sd.id)));
+      for (const a of attSnap.docs) await deleteDoc(a.ref);
+    }
+    // Delete tour payments
+    const tpSnap=await getDocs(query(collection(db,'tourPayments'),where('tourId','==',id)));
+    for (const d of tpSnap.docs) await deleteDoc(d.ref);
+    await Promise.all(delAll.map(d=>deleteDoc(d.ref)));
+    await deleteDoc(doc(db,'tournaments',id));
+    toast('Tournament deleted'); window.renderTournaments();
+  } catch(e) { toast('Delete failed: '+e.message,'err'); }
 };
 
 // ─────────────────────────────────────────────
@@ -116,12 +146,15 @@ function buildTourDetailUI(t) {
   // Action buttons
   let admBtns='';
   if (isAdmin) {
+    const delBtn=`<button class="btn btn-red btn-sm" onclick="deleteTournament('${window.activeTourId}','${esc(t.name||'')}')">🗑 Delete</button>`;
     admBtns = isOngoing
       ? `<button class="btn btn-ghost btn-sm" onclick="openTourSession()">+ Session</button>
-         <button class="btn btn-gold btn-sm" onclick="openEditTour()">Edit</button>`
+         <button class="btn btn-gold btn-sm" onclick="openEditTour()">Edit</button>
+         ${delBtn}`
       : `<button class="btn btn-ghost btn-sm" onclick="openAddTeam()">+ Team</button>
          <button class="btn btn-ghost btn-sm" onclick="openAddFixture()">+ Fixture</button>
-         <button class="btn btn-gold btn-sm" onclick="openEditTour()">Edit</button>`;
+         <button class="btn btn-gold btn-sm" onclick="openEditTour()">Edit</button>
+         ${delBtn}`;
   }
   $('td-action-btns').innerHTML=admBtns;
 
@@ -142,6 +175,7 @@ function buildTourDetailUI(t) {
   if (isOngoing) {
     tabs=`<div class="tab on" onclick="tdTab('members')">Players</div>
           <div class="tab" onclick="tdTab('attendance')">Attendance</div>
+          <div class="tab" onclick="tdTab('tourpay')">💳 Payments</div>
           ${isAdmin?'<div class="tab" onclick="tdTab(\'accounting\')">Accounting</div>':''}
           <div class="tab" onclick="tdTab('myreport')">📄 My Report</div>
           ${isAdmin?`<div class="tab" onclick="tdTab('adminreport')">📊 Reports</div>`:''}`;
@@ -164,6 +198,7 @@ window.tdTab = function(tab) {
   const el=$('td-tab-content');
   if (tab==='members')     renderOngoingMembers(el);
   if (tab==='attendance')  renderOngoingAttendance(el);
+  if (tab==='tourpay')     renderTourPayments(el);
   if (tab==='teams')       renderTDTeams(el);
   if (tab==='fixtures')    renderTDFix(el);
   if (tab==='standings')   renderTDStandings(el);
@@ -178,25 +213,57 @@ window.tdTab = function(tab) {
 // ─────────────────────────────────────────────
 async function renderOngoingMembers(el) {
   el.innerHTML='<div class="empty">Loading…</div>';
-  const snap=await getDocs(query(collection(db,'tourMembers'),where('tourId','==',window.activeTourId)));
+  const tourId=window.activeTourId;
+  const snap=await getDocs(query(collection(db,'tourMembers'),where('tourId','==',tourId)));
   const members=snap.docs.map(d=>({id:d.id,...d.data()}));
   const alreadyJoined=members.find(m=>m.userId===window.CU.uid);
   const isAdmin=window.CU.role==='admin';
-  let html=`<div class="row-sb mb16">
+  const now=new Date(); const tm=MONTHS[now.getMonth()], ty=now.getFullYear();
+
+  // Fetch this month's tour payments for all members
+  const tpSnap=await getDocs(query(collection(db,'tourPayments'),where('tourId','==',tourId),where('month','==',tm),where('year','==',ty)));
+  const tourPays=tpSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+  // My payment status
+  const myPay=tourPays.find(p=>p.memberId===window.CU.uid);
+  let myPayBanner='';
+  if (!isAdmin && alreadyJoined) {
+    if (!myPay) {
+      myPayBanner=`<div class="due-banner mb16">⚠️ Your monthly subscription is due for <strong>${tm} ${ty}</strong> — <button class="btn btn-gold btn-xs" onclick="tdTab('tourpay')" style="margin-left:8px">Pay Now</button></div>`;
+    } else if (myPay.status==='pending') {
+      myPayBanner=`<div style="background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.3);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--gold);margin-bottom:16px">⏳ Your payment for ${tm} ${ty} is under review</div>`;
+    } else if (myPay.status==='approved') {
+      myPayBanner=`<div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.25);border-radius:10px;padding:10px 14px;font-size:13px;color:var(--green);margin-bottom:16px">✓ Payment for ${tm} ${ty} approved${myPay.amount?' — €'+fmt2dp(myPay.amount):''}</div>`;
+    }
+  }
+
+  let html=`${myPayBanner}<div class="row-sb mb16">
     <div class="card-t" style="margin:0">${members.length} Player${members.length!==1?'s':''} Joined</div>
     ${!alreadyJoined?`<button class="btn btn-gold btn-sm" onclick="joinOngoingTour()">+ Join This Tournament</button>`:
       `<span class="b b-green" style="padding:8px 16px">✓ You're joined</span>`}
   </div>`;
+
   if (!members.length) { html+='<div class="empty">No players yet. Be the first!</div>'; }
   else {
+    // Admin sees payment status per member
+    const payCol = isAdmin ? '<th>This Month</th>' : '';
     html+=`<div class="tw"><table>
-      <thead><tr><th>#</th><th>Player</th><th>Joined</th>${isAdmin?'<th></th>':''}</tr></thead>
-      <tbody>${members.map((m,i)=>`<tr>
-        <td>${i+1}</td>
-        <td><strong>${esc(m.memberName)}</strong>${m.userId===window.CU.uid?' <span class="b b-gray" style="font-size:10px">you</span>':''}</td>
-        <td class="text-sm text-muted">${fmtDate(m.joinedAt)}</td>
-        ${isAdmin?`<td><button class="btn btn-red btn-xs" onclick="removeTourMember('${m.id}')">Remove</button></td>`:''}
-      </tr>`).join('')}</tbody>
+      <thead><tr><th>#</th><th>Player</th><th>Joined</th>${payCol}${isAdmin?'<th></th>':''}</tr></thead>
+      <tbody>${members.map((m,i)=>{
+        let payHtml='';
+        if (isAdmin) {
+          const p=tourPays.find(p=>p.memberId===m.userId);
+          if (!p) payHtml=`<td><span class="b b-red" style="font-size:10px">Due</span></td>`;
+          else payHtml=`<td><span class="b b-${p.status==='approved'?'green':p.status==='rejected'?'red':'gold'}" style="font-size:10px">${p.status}</span></td>`;
+        }
+        return `<tr>
+          <td>${i+1}</td>
+          <td><strong>${esc(m.memberName)}</strong>${m.userId===window.CU.uid?' <span class="b b-gray" style="font-size:10px">you</span>':''}</td>
+          <td class="text-sm text-muted">${fmtDate(m.joinedAt)}</td>
+          ${payHtml}
+          ${isAdmin?`<td><button class="btn btn-red btn-xs" onclick="removeTourMember('${m.id}')">Remove</button></td>`:''}
+        </tr>`;
+      }).join('')}</tbody>
     </table></div>`;
   }
   el.innerHTML=html;
@@ -484,6 +551,183 @@ async function renderTDReport(el) {
       </div>
     </div>`;
 }
+
+// ─────────────────────────────────────────────
+// TOURNAMENT PAYMENTS TAB
+// ─────────────────────────────────────────────
+async function renderTourPayments(el) {
+  el.innerHTML='<div class="empty">Loading…</div>';
+  const tourId=window.activeTourId, t=window.activeTourData;
+  const isAdmin=window.CU.role==='admin';
+  const now=new Date(); const tm=MONTHS[now.getMonth()], ty=now.getFullYear();
+
+  // Check if this member is joined
+  if (!isAdmin) {
+    const joinSnap=await getDocs(query(collection(db,'tourMembers'),where('tourId','==',tourId),where('userId','==',window.CU.uid)));
+    if (joinSnap.empty) {
+      el.innerHTML='<div class="empty">Join this tournament first to access payments.</div>';
+      return;
+    }
+  }
+
+  // Fetch tour payments
+  const allTpSnap=await getDocs(query(collection(db,'tourPayments'),where('tourId','==',tourId)));
+  const allTp=allTpSnap.docs.map(d=>({id:d.id,...d.data()}));
+
+  if (isAdmin) {
+    // Admin: see all, approve/reject, pending list
+    const pending=allTp.filter(p=>p.status==='pending');
+    const membSnap=await getDocs(query(collection(db,'tourMembers'),where('tourId','==',tourId)));
+    const members=membSnap.docs.map(d=>({uid:d.data().userId,name:d.data().memberName}));
+
+    // Build month overview table
+    const months=[...new Set(allTp.map(p=>`${p.month} ${p.year}`))];
+    if (!months.length) months.push(`${tm} ${ty}`);
+
+    el.innerHTML=`
+      <div class="stats mb20">
+        <div class="sc"><div class="sc-l">Members</div><div class="sc-v">${members.length}</div></div>
+        <div class="sc"><div class="sc-l">Pending Review</div><div class="sc-v" style="color:var(--gold)">${pending.length}</div></div>
+        <div class="sc"><div class="sc-l">Approved</div><div class="sc-v" style="color:var(--green)">${allTp.filter(p=>p.status==='approved').length}</div></div>
+      </div>
+      ${pending.length?`
+        <div class="card-t">Pending Receipts</div>
+        <div class="tw mb20"><table>
+          <thead><tr><th>Member</th><th>Month</th><th>Amount</th><th>Uploaded</th><th></th></tr></thead>
+          <tbody>${pending.map(p=>`<tr>
+            <td><strong>${esc(p.memberName)}</strong></td>
+            <td>${esc(p.month)} ${p.year}</td>
+            <td>${p.amount?`<strong style="color:var(--green)">€${fmt2dp(p.amount)}</strong>`:'—'}</td>
+            <td>${fmtDate(p.uploaded)}</td>
+            <td><button class="btn btn-teal btn-sm" onclick="reviewTourPay('${p.id}')">Review</button></td>
+          </tr>`).join('')}</tbody>
+        </table></div>`:''}
+      <div class="card-t">Payment Status Overview — ${tm} ${ty}</div>
+      <div class="tw"><table>
+        <thead><tr><th>Member</th><th>Amount</th><th>Status</th><th></th></tr></thead>
+        <tbody>${members.map(m=>{
+          const p=allTp.find(p=>p.memberId===m.uid&&p.month===tm&&p.year===ty);
+          const status=p?`<span class="b b-${p.status==='approved'?'green':p.status==='rejected'?'red':'gold'}">${p.status}</span>`
+            :`<span class="b b-red">Due</span>`;
+          return `<tr>
+            <td><strong>${esc(m.name)}</strong></td>
+            <td>${p?.amount?`€${fmt2dp(p.amount)}`:'—'}</td>
+            <td>${status}</td>
+            <td>${p?`<button class="btn btn-ghost btn-xs" onclick="reviewTourPay('${p.id}')">View</button>`:''}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div>`;
+  } else {
+    // Member: own payments + upload form
+    const myPays=allTp.filter(p=>p.memberId===window.CU.uid).sort((a,b)=>`${b.year}${MONTHS.indexOf(b.month)}`.localeCompare(`${a.year}${MONTHS.indexOf(a.month)}`));
+    const thisPay=myPays.find(p=>p.month===tm&&p.year===ty);
+    // Due warnings for past months
+    const dueWarnings=buildDueWarningsForTour(myPays,now);
+    let statusHtml='';
+    if (!thisPay) statusHtml=`<div class="due-banner">⚠️ Your monthly subscription is due for <strong>${tm} ${ty}</strong></div>`;
+    else if (thisPay.status==='pending') statusHtml=`<div style="background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.3);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--gold)">⏳ Receipt for <strong>${tm} ${ty}</strong> is under review</div>`;
+    else if (thisPay.status==='approved') statusHtml=`<div style="background:rgba(74,222,128,.07);border:1px solid rgba(74,222,128,.25);border-radius:10px;padding:12px 16px;font-size:13px;color:var(--green)">✓ Payment for <strong>${tm} ${ty}</strong> approved${thisPay.amount?' — €'+fmt2dp(thisPay.amount):''}</div>`;
+    else statusHtml=`<div class="due-banner">❌ Payment rejected. Please re-upload below.</div>`;
+
+    const showUpload=!thisPay||thisPay.status==='rejected';
+    el.innerHTML=`
+      <div class="mb16">${statusHtml}</div>
+      ${dueWarnings}
+      ${showUpload?`<div class="card mb20">
+        <div class="card-t">Submit Payment Receipt — ${esc(t?.name||'')}</div>
+        <div class="fg"><label>Month</label><select id="tp-month">${MONTHS.map(m=>`<option ${m===tm?'selected':''}>${m}</option>`).join('')}</select></div>
+        <div class="fg"><label>Year</label><input type="number" id="tp-year" value="${ty}" min="2020" max="2035"></div>
+        <div class="fg"><label>Amount Paid (€)</label><input type="number" id="tp-amount" placeholder="e.g. 20.00" min="0" step="0.01"></div>
+        <div class="fg"><label>Receipt (image or PDF, max 2MB)</label><input type="file" id="tp-file" accept="image/*,.pdf"></div>
+        <button class="btn btn-gold" onclick="uploadTourReceipt('${tourId}')">Submit for Approval</button>
+      </div>`:''}
+      <div class="card-t">My Payment History</div>
+      ${myPays.length?`<div class="tw"><table>
+        <thead><tr><th>Month</th><th>Year</th><th>Amount</th><th>Status</th></tr></thead>
+        <tbody>${myPays.map(p=>`<tr>
+          <td>${esc(p.month)}</td><td>${p.year}</td>
+          <td>${p.amount?`€${fmt2dp(p.amount)}`:'—'}</td>
+          <td><span class="b b-${p.status==='approved'?'green':p.status==='rejected'?'red':'gold'}">${p.status}</span></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`:'<div class="empty">No payments yet.</div>'}`;
+  }
+}
+
+function buildDueWarningsForTour(pays, now) {
+  const warnings=[];
+  for (let i=1;i<=3;i++) {
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const month=MONTHS[d.getMonth()], year=d.getFullYear();
+    const p=pays.find(p=>p.month===month&&p.year===year);
+    if (!p||p.status==='rejected') {
+      warnings.push(`<div class="due-banner" style="margin-bottom:8px">⚠️ Monthly subscription is due for <strong>${month} ${year}</strong>${p?.status==='rejected'?' — previous receipt was rejected':''}</div>`);
+    }
+  }
+  return warnings.length?`<div class="mb16">${warnings.join('')}</div>`:'';
+}
+
+window.uploadTourReceipt = function(tourId) {
+  const monthEl=$('tp-month'),yearEl=$('tp-year'),amountEl=$('tp-amount'),fileEl=$('tp-file');
+  if (!monthEl||!fileEl){ toast('Upload form not found','err'); return; }
+  const month=monthEl.value, year=parseInt(yearEl.value);
+  const amount=parseFloat(amountEl?.value)||0;
+  const file=fileEl.files[0];
+  if (!file){ toast('Select a receipt','err'); return; }
+  if (file.size>2*1024*1024){ toast('File too large — max 2MB','err'); return; }
+  const reader=new FileReader();
+  reader.onload=async e=>{
+    // Check not already submitted (non-rejected)
+    const existing=await getDocs(query(collection(db,'tourPayments'),where('tourId','==',tourId),where('memberId','==',window.CU.uid),where('month','==',month),where('year','==',year)));
+    if (existing.docs.some(d=>d.data().status!=='rejected')){ toast('Already submitted for this month','err'); return; }
+    await addDoc(collection(db,'tourPayments'),{
+      tourId, memberId:window.CU.uid, memberName:window.CU.name,
+      month, year, amount, status:'pending',
+      receiptData:e.target.result, uploaded:serverTimestamp()
+    });
+    toast('Receipt submitted! Awaiting admin approval.');
+    renderTourPayments($('td-tab-content'));
+  };
+  reader.readAsDataURL(file);
+};
+
+window.reviewTourPay = async function(id) {
+  const snap=await getDoc(doc(db,'tourPayments',id)); const p=snap.data();
+  $('pay-rev-body').innerHTML=`
+    <div class="fg"><label>Member</label><strong>${esc(p.memberName)}</strong></div>
+    <div class="fg"><label>Tournament</label>${esc(window.activeTourData?.name||'')}</div>
+    <div class="fg"><label>Period</label>${esc(p.month)} ${p.year}</div>
+    ${p.amount?`<div class="fg"><label>Amount Paid</label><strong style="color:var(--green);font-size:18px">€${fmt2dp(p.amount)}</strong></div>`:''}
+    <div class="fg"><label>Status</label><span class="b b-${p.status==='approved'?'green':p.status==='rejected'?'red':'gold'}">${p.status}</span></div>
+    <div class="fg"><label>Receipt</label>${p.receiptData?`<img src="${p.receiptData}" class="receipt-img">`:'No receipt attached'}</div>`;
+  $('pay-rev-btns').innerHTML=p.status==='pending'
+    ?`<button class="btn btn-gold" onclick="approveTourPay('${id}','${p.tourId}',${p.amount||0},'${p.memberName}','${p.month}',${p.year})">✓ Approve</button>
+      <button class="btn btn-red" onclick="rejectTourPay('${id}')">✗ Reject</button>`
+    :`<span class="b b-${p.status==='approved'?'green':'red'}" style="padding:10px 18px">Payment ${p.status}</span>`;
+  openM('m-pay-review');
+};
+
+window.approveTourPay = async function(id, tourId, amount, memberName, month, year) {
+  await updateDoc(doc(db,'tourPayments',id),{status:'approved'});
+  // Auto-add to tournament accounting as income
+  try {
+    await addDoc(collection(db,'accounting'),{
+      type:'income', desc:`Membership fee — ${memberName}`,
+      cat:'Membership Fees', amount:+amount,
+      date:new Date().toISOString().slice(0,10),
+      note:`${month} ${year}`,
+      scopeType:'tournament', scopeId:tourId,
+      createdBy:'system', createdAt:serverTimestamp()
+    });
+  } catch(e){ console.warn('Accounting entry failed',e); }
+  closeM('m-pay-review'); toast('Approved & recorded in accounting!');
+  renderTourPayments($('td-tab-content'));
+};
+
+window.rejectTourPay = async function(id) {
+  await updateDoc(doc(db,'tourPayments',id),{status:'rejected'});
+  closeM('m-pay-review'); toast('Rejected','err');
+  renderTourPayments($('td-tab-content'));
+};
 
 // ─────────────────────────────────────────────
 // SEASONAL JOIN

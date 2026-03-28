@@ -294,20 +294,23 @@ window.renderMembers = async function() {
   $('mem-tbody').innerHTML = users.map(u=>{
     const isSelf=u.docId===window.CU.uid, isAdm=u.role==='admin';
     const pay=pays.find(p=>p.memberId===u.docId&&p.month===tm&&p.year===ty);
-    const pHtml=isAdm?'<span class="b b-gray">—</span>':pay
-      ?`<span class="b b-${pay.status==='approved'?'green':pay.status==='rejected'?'red':'gold'}">${pay.status}</span>`
-      :`<span class="b b-red">Due ${tm}</span>`;
+    // Build due warning for non-admins
+    const dueHtml = isAdm ? '<span class="b b-gray">—</span>' :
+      pay ? `<span class="b b-${pay.status==='approved'?'green':pay.status==='rejected'?'red':'gold'}">${pay.status}${pay.amount?' €'+fmt2dp(pay.amount):''}</span>`
+          : `<span class="b b-red" title="Monthly fee due for ${tm} ${ty}">⚠ Due ${tm}</span>`;
     const roleHtml=`<span class="b b-${isAdm?'gold':'gray'}">${isAdm?'Admin':'Member'}</span>`;
     const pBtn=isSelf?'':isAdm
       ?`<button class="btn btn-ghost btn-xs" onclick="setRole('${u.docId}','member')">↓ Demote</button>`
       :`<button class="btn btn-teal btn-xs" onclick="setRole('${u.docId}','admin')">↑ Admin</button>`;
+    const viewPayBtn = !isAdm && pay ? `<button class="btn btn-ghost btn-xs" onclick="reviewPay('${pay.id}')">Receipt</button>` : '';
     const rBtn=isSelf?'':`<button class="btn btn-red btn-xs" onclick="removeMember('${u.docId}')">Remove</button>`;
     return `<tr>
       <td><strong>${esc(u.name)}</strong>${isSelf?' <span class="b b-gray" style="font-size:10px">you</span>':''}</td>
-      <td>${esc(u.email)}</td><td>${roleHtml}</td>
+      <td style="font-size:12px">${esc(u.email)}</td>
+      <td>${roleHtml}</td>
       <td class="text-sm text-muted">${fmtDate(u.joined)}</td>
-      <td>${pHtml}</td>
-      <td><div class="row">${pBtn}${rBtn}</div></td>
+      <td>${dueHtml}</td>
+      <td><div class="row" style="gap:4px">${viewPayBtn}${pBtn}${rBtn}</div></td>
     </tr>`;
   }).join('');
 };
